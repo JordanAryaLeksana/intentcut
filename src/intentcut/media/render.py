@@ -17,8 +17,8 @@ from intentcut.media.preprocess_video_pipeline import (
     ClipNormalize,
     TimelineMuxer,
 )
-from intentcut.media.probe import MediaProbe
-from intentcut.media.process import ProcessRunner
+from intentcut.media.probe_parser import MediaProbe
+from intentcut.media.process_runner import ProcessRunner
 from intentcut.media.settings import FPS
 
 

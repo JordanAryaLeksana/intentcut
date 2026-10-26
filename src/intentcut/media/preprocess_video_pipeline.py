@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 
 from intentcut.media.models import MediaMetadata, OutputValidationError
-from intentcut.media.process import ProcessRunner
+from intentcut.media.process_runner import ProcessRunner
 from intentcut.media.settings import VIDEO_FILTER
 
 

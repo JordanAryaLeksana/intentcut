@@ -3,7 +3,7 @@ import subprocess
 import pytest
 
 from intentcut.media.models import MediaProcessError, MissingBinaryError
-from intentcut.media.process import render_timeout, run_process
+from intentcut.media.process_runner import render_timeout, run_process
 
 
 @pytest.mark.parametrize(

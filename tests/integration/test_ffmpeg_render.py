@@ -10,7 +10,7 @@ import pytest
 
 from intentcut import VerticalVideoRenderer, render_vertical_mp4
 from intentcut.media.models import InvalidMediaError, MediaProcessError
-from intentcut.media.probe import probe_media
+from intentcut.media.probe_parser import probe_media
 
 pytestmark = pytest.mark.integration
 

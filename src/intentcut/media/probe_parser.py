@@ -12,7 +12,7 @@ from intentcut.media.models import (
     MediaMetadata,
     VideoStream,
 )
-from intentcut.media.process import PROBE_TIMEOUT, ProcessRunner
+from intentcut.media.process_runner import PROBE_TIMEOUT, ProcessRunner
 
 
 class ProbeParser:
