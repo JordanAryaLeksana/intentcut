@@ -44,3 +44,11 @@ def test_ai_job_has_database_constraints() -> None:
 
     assert "ai_job_valid_status" in constraints
     assert "ai_job_payload_object" in constraints
+
+def test_ai_job_lease_columns() -> None:
+    table = AIJob.__table__
+
+    assert table.c.lease_token.nullable
+    assert table.c.lease_expires_at.nullable
+    assert not table.c.attempt_count.nullable
+    assert table.c.attempt_count.server_default.arg == "0"

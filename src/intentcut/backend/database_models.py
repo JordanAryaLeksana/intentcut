@@ -16,9 +16,11 @@ from sqlalchemy import (
     Uuid,
     func,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from intentcut.backend.ai_jobs import AIJobStatus
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from intentcut.backend.ai_jobs import AIJobStatus
+
 
 class Base(DeclarativeBase):
     """Shared SQLAlchemy metadata for the two M1B tables."""
@@ -157,4 +159,21 @@ class AIJob(Base):
     finished_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
+    )
+
+    lease_token: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        nullable=True,
+    )
+
+    lease_expires_at : Mapped[DateTime | None]= mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    attempt_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
     )

@@ -1,3 +1,4 @@
+
 import pytest
 
 from intentcut.backend.ai_jobs import (
@@ -11,6 +12,7 @@ from intentcut.backend.ai_jobs import (
     [
         (AIJobStatus.QUEUED, AIJobStatus.RUNNING),
         (AIJobStatus.QUEUED, AIJobStatus.FAILED),
+        (AIJobStatus.RUNNING, AIJobStatus.QUEUED),
         (AIJobStatus.RUNNING, AIJobStatus.SUCCEEDED),
         (AIJobStatus.RUNNING, AIJobStatus.FAILED),
     ],
@@ -23,12 +25,14 @@ def test_valid_transitions(current, target):
     ("current", "target"),
     [
         (AIJobStatus.QUEUED, AIJobStatus.SUCCEEDED),
-        (AIJobStatus.RUNNING, AIJobStatus.QUEUED),
         (AIJobStatus.SUCCEEDED, AIJobStatus.RUNNING),
         (AIJobStatus.FAILED, AIJobStatus.RUNNING),
         (AIJobStatus.RUNNING, AIJobStatus.RUNNING),
+        (AIJobStatus.SUCCEEDED, AIJobStatus.FAILED),
     ],
 )
 def test_invalid_transitions(current, target):
-    with pytest.raises(ValueError, match="Invalid AI job transition"):
+    with pytest.raises(
+        ValueError, match="Invalid AI job transition"
+    ):
         validate_job_transition(current, target)
