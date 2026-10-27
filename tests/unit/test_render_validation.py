@@ -68,13 +68,12 @@ def test_reject_missing_output_audio(valid_media):
         render.validate_output(replace(valid_media, audio=None), 1.0)
 
 
-@pytest.mark.parametrize("paths", [[], [Path("one.mp4")]])
-def test_reject_fewer_than_two_inputs(tmp_path, paths):
-    with pytest.raises(InvalidMediaError, match="At least two"):
-        render.render_vertical_mp4(paths, tmp_path / "output.mp4")
+def test_reject_zero_inputs(tmp_path):
+    with pytest.raises(InvalidMediaError, match="At least one"):
+        render.render_vertical_mp4([], tmp_path / "output.mp4")
+
     assert not list(tmp_path.iterdir())
-
-
+    
 def test_existing_output_is_untouched(tmp_path):
     target = tmp_path / "output.mp4"
     target.write_bytes(b"keep me")
