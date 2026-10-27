@@ -5,10 +5,9 @@ import os
 import sys
 from pathlib import Path
 from time import perf_counter
-from pathlib import Path
+
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 
 MODEL = "muse-spark-1.3"
 

@@ -1,5 +1,5 @@
-"""Concrete PostgreSQL operations, each owning a short-lived session."""
-
+import re 
+from sqlalchemy import func, update
 from collections.abc import Sequence
 from uuid import UUID
 
@@ -8,7 +8,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
 from intentcut.backend.database_models import Base, MediaAsset, Project
+from datetime import UTC, datetime
 
+from intentcut.backend.ai_jobs import AIJobStatus
+from intentcut.backend.database_models import AIJob
 
 class ProjectNotFound(Exception):
     """The requested parent project does not exist."""
@@ -110,7 +113,118 @@ class Database:
             if asset is None:
                 raise MediaNotFound
             return asset
+    
+    def create_ai_job(
+        self,
+        project_id: UUID,
+        request_payload: dict[str, object],
+    ) -> AIJob:
+        """Create a queued AI job for an existing project."""
 
+        with self._sessions.begin() as session:
+            if session.get(Project, project_id) is None:
+                raise ProjectNotFound
+
+            job = AIJob(
+                project_id=project_id,
+                status=AIJobStatus.QUEUED.value,
+                request_payload=request_payload,
+            )
+
+            session.add(job)
+            session.flush()
+
+        return job
+
+    def get_ai_job(
+        self,
+        project_id: UUID,
+        job_id: UUID,
+    ) -> AIJob | None:
+        """Read a job scoped to its project."""
+
+        with self._sessions() as session:
+            return session.scalar(
+                select(AIJob).where(
+                    AIJob.id == job_id,
+                    AIJob.project_id == project_id,
+                )
+            )
+
+    def claim_next_ai_job(self) -> AIJob | None:
+        """Atomically claim the oldest available queued job."""
+
+        with self._sessions.begin() as session:
+            job = session.scalar(
+                select(AIJob)
+                .where(AIJob.status == AIJobStatus.QUEUED.value)
+                .order_by(AIJob.created_at, AIJob.id)
+                .limit(1)
+                .with_for_update(skip_locked=True)
+            )
+
+            if job is None:
+                return None
+
+            now = datetime.now(UTC)
+
+            job.status = AIJobStatus.RUNNING.value
+            job.started_at = now
+            job.updated_at = now
+
+            session.flush()
+
+        return job
+    def complete_ai_job(
+            self, 
+            project_id: UUID, 
+            job_id : UUID
+    ) -> bool:
+        with self._sessions.begin() as session:
+            updated_id = session.scalar(
+                update(AIJob)
+                .where(
+                    AIJob.id == job_id, 
+                    AIJob.project_id == project_id,
+                    AIJob.status == AIJobStatus.RUNNING.value,
+                )
+                .values(
+                    status=AIJobStatus.SUCCEEDED.value,
+                    error_code= None,
+                    finished_at=func.now(),
+                    updated_at=func.now(),
+                )
+                .returning(AIJob.id)
+            )
+            return updated_id is not None
+    def fail_ai_job(
+            self,
+            project_id: UUID, 
+            job_id: UUID,
+            error_code: str,
+    )-> bool:
+        
+        if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", error_code):
+            raise ValueError("Invalid AI job error code")
+
+        with self._sessions.begin() as session:
+            updated_id = session.scalar(
+                update(AIJob)
+                .where(
+                    AIJob.id == job_id,
+                    AIJob.project_id == project_id,
+                    AIJob.status == AIJobStatus.RUNNING.value,
+                )
+                .values(
+                    status=AIJobStatus.FAILED.value,
+                    error_code=error_code,
+                    finished_at=func.now(),
+                    updated_at=func.now(),
+                )
+                .returning(AIJob.id)
+            )
+
+        return updated_id is not None
 
 def main() -> int:
     """Initialize the local schema deliberately, outside application startup."""

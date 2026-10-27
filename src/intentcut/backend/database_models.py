@@ -17,7 +17,8 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
+from intentcut.backend.ai_jobs import AIJobStatus
+from sqlalchemy.dialects.postgresql import JSONB
 
 class Base(DeclarativeBase):
     """Shared SQLAlchemy metadata for the two M1B tables."""
@@ -78,4 +79,82 @@ class MediaAsset(Base):
     audio_channels: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class AIJob(Base):
+    __tablename__ = "ai_jobs"
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued', 'running', 'succeeded', 'failed')",
+            name="ai_job_valid_status",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(request_payload) = 'object'",
+            name="ai_job_payload_object",
+        ),
+        Index(
+            "ix_ai_jobs_status_created",
+            "status",
+            "created_at",
+            "id",
+        ),
+        Index(
+            "ix_ai_jobs_project_created",
+            "project_id",
+            "created_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid,
+        primary_key=True,
+        default=uuid4,
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=AIJobStatus.QUEUED.value,
+        server_default=AIJobStatus.QUEUED.value,
+    )
+
+    request_payload: Mapped[dict[str, object]] = mapped_column(
+        JSONB,
+        nullable=False,
+    )
+
+    error_code: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )

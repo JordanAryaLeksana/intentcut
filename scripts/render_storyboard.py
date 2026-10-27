@@ -1,8 +1,9 @@
 import argparse
 import hashlib
-import math 
 import json
+import math
 from pathlib import Path
+
 from intentcut.media.render import render_vertical_mp4
 
 
