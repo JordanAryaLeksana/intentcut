@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from intentcut.backend.local_media_storage import EmptyFile, FileTooLarge
+from intentcut.backend.database.local_media_storage import EmptyFile, FileTooLarge
 
 
 def test_copy_is_bounded_and_content_is_unchanged(storage):
@@ -66,7 +66,7 @@ def test_publication_failure_removes_only_its_new_directory(storage, monkeypatch
 
 @pytest.mark.parametrize("unsafe", ["symlink", "parent_symlink", "traversal"])
 def test_refuses_unsafe_storage_root(tmp_path, unsafe):
-    from intentcut.backend.local_media_storage import LocalMediaStorage
+    from intentcut.backend.database.local_media_storage import LocalMediaStorage
 
     real = tmp_path / "real"
     real.mkdir()

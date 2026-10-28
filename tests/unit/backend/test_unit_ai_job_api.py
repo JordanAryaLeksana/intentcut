@@ -13,7 +13,7 @@ from sqlalchemy.exc import OperationalError
 from intentcut.backend.ai_job_routes import SnapshotResponse
 from intentcut.backend.ai_job_service import AIJobService
 from intentcut.backend.app import create_app
-from intentcut.backend.database_models import AIJob, AIJobArtifact
+from intentcut.backend.database.database_models import AIJob, AIJobArtifact
 
 
 @pytest.fixture

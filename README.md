@@ -1,8 +1,9 @@
 # IntentCut — Your AI Storytelling Director
 
-M1A implements a local, deterministic Python media engine. It joins two or more
-ordered videos into a vertical MP4. All code was newly written for this project.
-There are no application services or AI components in this milestone.
+IntentCut combines a reusable local media engine with a FastAPI backend for
+project uploads, bounded Muse first-cut processing, and persistent MP4/storyboard
+artifacts. See the [M2B.9 guide](M2B9_UPLOADED_MEDIA.md) for the current upload →
+queued job → worker → download workflow and its local-only access requirements.
 
 ## Requirements and setup
 
@@ -65,6 +66,13 @@ the flow, class responsibilities, compatibility API, and how to extend the engin
 
 The CLI, output settings, errors, and publication rules remain unchanged. Module
 functions are thin compatibility adapters; new code can use the classes directly.
+
+For backend work, start with the [backend layout](BACKEND_ARCHITECTURE.md).
+Project routes live in `backend/projects/`, upload routes and orchestration in
+`backend/media_ingestion/`, and settings in `backend/shared/`. Existing import
+paths remain supported. Public schemas live with their features; first-cut inputs
+and shared processing contracts are independent of HTTP adapters. Database, worker,
+and artifact internals retain their current structure while the frontend MVP is developed.
 
 ## Validation
 

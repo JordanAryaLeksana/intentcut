@@ -7,17 +7,18 @@ from tempfile import SpooledTemporaryFile
 from typing import BinaryIO
 from uuid import UUID
 
-from intentcut.backend.ai_jobs import AIProcessingError
-from intentcut.backend.ai_media_inputs import (
+from intentcut.backend.artifacts.schemas import PublicStoryboard
+from intentcut.backend.contracts import AIProcessingError
+from intentcut.backend.storage.database import Database
+from intentcut.backend.storage.database_models import AIJob, AIJobArtifact
+from intentcut.backend.first_cut.contracts import FirstCutRequest
+from intentcut.backend.first_cut.media_inputs import (
     fingerprint_source,
     plan_inputs,
     processing_available,
 )
-from intentcut.backend.api_schemas import FirstCutRequest, PublicStoryboard
-from intentcut.backend.backend_settings import BackendSettings
-from intentcut.backend.database import Database
-from intentcut.backend.database_models import AIJob, AIJobArtifact
-from intentcut.backend.local_media_storage import LocalMediaStorage
+from intentcut.backend.storage.local_media_storage import LocalMediaStorage
+from intentcut.backend.shared.settings import BackendSettings
 
 
 class AIJobAPIError(Exception):

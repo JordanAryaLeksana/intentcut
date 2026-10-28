@@ -1,7 +1,7 @@
 
 import pytest
 
-from intentcut.backend.ai_jobs import (
+from intentcut.backend.jobs.domain import (
     AIJobStatus,
     validate_job_transition,
 )

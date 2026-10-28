@@ -1,8 +1,8 @@
 from sqlalchemy import CheckConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 
-from intentcut.backend.ai_jobs import AIJobStatus
-from intentcut.backend.database_models import AIJob, Base
+from intentcut.backend.storage.database_models import AIJob, Base
+from intentcut.backend.jobs.domain import AIJobStatus
 
 
 def test_ai_jobs_registered_in_metadata() -> None:

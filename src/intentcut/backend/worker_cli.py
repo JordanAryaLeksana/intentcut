@@ -8,12 +8,12 @@ from openai import OpenAI
 
 from intentcut.ai.muse import MuseClient
 from intentcut.backend.ai_artifacts import AIArtifactPublisher
-from intentcut.backend.ai_media_inputs import processing_available
 from intentcut.backend.ai_processing_adapter import RealAIProcessingAdapter
 from intentcut.backend.ai_worker import AIJobWorker
-from intentcut.backend.backend_settings import BackendSettings
-from intentcut.backend.database import Database
-from intentcut.backend.local_media_storage import LocalMediaStorage
+from intentcut.backend.storage.database import Database
+from intentcut.backend.first_cut.media_inputs import processing_available
+from intentcut.backend.storage.local_media_storage import LocalMediaStorage
+from intentcut.backend.shared.settings import BackendSettings
 
 
 def run_worker(

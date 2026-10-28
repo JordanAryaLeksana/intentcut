@@ -12,7 +12,7 @@ from sqlalchemy import func, select, update
 from intentcut.backend.ai_artifacts import AIArtifactPublisher
 from intentcut.backend.ai_worker import AIJobWorker
 from intentcut.backend.app import create_app
-from intentcut.backend.database_models import AIJob, AIJobArtifact
+from intentcut.backend.database.database_models import AIJob, AIJobArtifact
 
 pytestmark = [pytest.mark.integration, pytest.mark.postgres]
 

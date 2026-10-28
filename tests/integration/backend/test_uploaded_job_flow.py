@@ -15,7 +15,7 @@ from intentcut.backend.ai_artifacts import AIArtifactPublisher
 from intentcut.backend.ai_processing_adapter import RealAIProcessingAdapter
 from intentcut.backend.ai_worker import AIJobWorker
 from intentcut.backend.app import create_app
-from intentcut.backend.database_models import AIJob
+from intentcut.backend.database.database_models import AIJob
 from intentcut.media.probe_parser import MediaProbe
 from intentcut.media.render import OutputValidator
 
@@ -379,7 +379,7 @@ def test_worker_entry_point_uses_real_pipeline_without_paid_calls(
 
 
 def test_long_video_budget_before_provider_calls(api, uploaded, database):
-    from intentcut.backend.database_models import MediaAsset
+    from intentcut.backend.database.database_models import MediaAsset
 
     project, media = uploaded
     with database.engine.begin() as connection:

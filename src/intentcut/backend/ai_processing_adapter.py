@@ -1,9 +1,7 @@
 """Uploaded media → grounded Muse evidence → validated EditPlan → M1A rendering."""
 
 import math
-from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 
 from intentcut.ai.story_director import build_edit_plan
 from intentcut.ai.video_understanding import (
@@ -12,26 +10,20 @@ from intentcut.ai.video_understanding import (
     WindowUnderstanding,
     file_digest,
 )
-from intentcut.backend.ai_jobs import AIProcessingError
-from intentcut.backend.ai_media_inputs import (
-    UploadedFirstCutRequest,
+from intentcut.backend.contracts import AIProcessingError, ProcessingResult
+from intentcut.backend.storage.database import Database
+from intentcut.backend.storage.database_models import AIJob
+from intentcut.backend.first_cut.contracts import UploadedFirstCutRequest
+from intentcut.backend.first_cut.media_inputs import (
     fingerprint_source,
     plan_inputs,
 )
-from intentcut.backend.backend_settings import BackendSettings
-from intentcut.backend.database import Database
-from intentcut.backend.database_models import AIJob
-from intentcut.backend.local_media_storage import LocalMediaStorage
+from intentcut.backend.storage.local_media_storage import LocalMediaStorage
+from intentcut.backend.shared.settings import BackendSettings
 from intentcut.media.probe_parser import MediaProbe
 from intentcut.media.render import VerticalVideoRenderer
 from intentcut.media.settings import FPS
 from intentcut.media.window_extract import extract_window
-
-
-@dataclass(frozen=True)
-class ProcessingResult:
-    storyboard_path: Path
-    staged_video_path: Path
 
 
 class RealAIProcessingAdapter:

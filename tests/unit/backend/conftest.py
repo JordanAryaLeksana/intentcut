@@ -8,11 +8,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from intentcut.backend.app import create_app
-from intentcut.backend.backend_settings import BackendSettings
-from intentcut.backend.database import Database, MediaNotFound, ProjectNotFound
-from intentcut.backend.database_models import Project
-from intentcut.backend.local_media_storage import LocalMediaStorage
-from intentcut.backend.media_ingestion_service import MediaIngestionService
+from intentcut.backend.storage.database import Database, MediaNotFound, ProjectNotFound
+from intentcut.backend.storage.database_models import Project
+from intentcut.backend.storage.local_media_storage import LocalMediaStorage
+from intentcut.backend.media_ingestion.service import MediaIngestionService
+from intentcut.backend.shared.settings import BackendSettings
 from intentcut.media.models import AudioStream, MediaMetadata, VideoStream
 from intentcut.media.probe_parser import MediaProbe
 

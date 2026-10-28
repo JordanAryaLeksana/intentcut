@@ -1,9 +1,9 @@
 
 from threading import Event
 
-from intentcut.backend.ai_jobs import AIJobStatus
 from intentcut.backend.ai_processing_adapter import ProcessingResult
 from intentcut.backend.ai_worker import AIJobWorker
+from intentcut.backend.jobs.domain import AIJobStatus
 
 
 def test_worker_completes_successful_job(database):

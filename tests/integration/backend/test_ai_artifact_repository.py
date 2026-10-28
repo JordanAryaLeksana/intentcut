@@ -12,9 +12,9 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from intentcut.backend.ai_artifacts import AIArtifactPublisher
 from intentcut.backend.ai_worker import AIJobWorker
-from intentcut.backend.database import CommitOutcomeUnknown
-from intentcut.backend.database_models import AIJob, AIJobArtifact
-from intentcut.backend.local_media_storage import LocalMediaStorage
+from intentcut.backend.database.database import CommitOutcomeUnknown
+from intentcut.backend.database.database_models import AIJob, AIJobArtifact
+from intentcut.backend.database.local_media_storage import LocalMediaStorage
 
 pytestmark = [pytest.mark.integration, pytest.mark.postgres]
 

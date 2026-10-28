@@ -4,7 +4,7 @@ import pytest
 from pydantic import SecretStr
 
 from intentcut.backend import worker_cli
-from intentcut.backend.ai_media_inputs import processing_available
+from intentcut.backend.first_cut.media_inputs import processing_available
 
 
 @pytest.mark.parametrize(
@@ -38,7 +38,7 @@ def test_missing_ffmpeg_fails_closed(settings, monkeypatch):
         }
     )
     monkeypatch.setattr(
-        "intentcut.backend.ai_media_inputs.shutil.which", lambda _: None
+        "intentcut.backend.first_cut.media_inputs.shutil.which", lambda _: None
     )
     assert not processing_available(settings)
 

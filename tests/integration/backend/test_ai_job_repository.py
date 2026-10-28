@@ -3,8 +3,8 @@ from uuid import uuid4
 
 import pytest
 
-from intentcut.backend.ai_jobs import AIJobStatus
-from intentcut.backend.database import ProjectNotFound
+from intentcut.backend.storage.database import ProjectNotFound
+from intentcut.backend.jobs.domain import AIJobStatus
 
 
 def test_create_and_retrieve_ai_job(database):
@@ -216,7 +216,7 @@ def test_expired_lease_cannot_finish_job(database):
 
     from sqlalchemy import func, update
 
-    from intentcut.backend.database_models import AIJob
+    from intentcut.backend.storage.database_models import AIJob
 
     project = database.create_project("Expired Fencing Test")
     job = database.create_ai_job(
@@ -323,7 +323,7 @@ def test_expired_lease_rejects_heartbeat(database):
 
     from sqlalchemy import func, update
 
-    from intentcut.backend.database_models import AIJob
+    from intentcut.backend.storage.database_models import AIJob
 
     project = database.create_project("Expired Lease Test")
 
@@ -360,7 +360,7 @@ def _expire_job(database, job_id):
 
     from sqlalchemy import func, update
 
-    from intentcut.backend.database_models import AIJob
+    from intentcut.backend.storage.database_models import AIJob
 
     with database.engine.begin() as connection:
         connection.execute(

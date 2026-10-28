@@ -6,13 +6,10 @@ from threading import Event, Thread
 from uuid import UUID
 
 from intentcut.backend.ai_artifacts import AIArtifactPublisher
-from intentcut.backend.ai_jobs import AIProcessingError
-from intentcut.backend.ai_processing_adapter import (
-    ProcessingResult,
-    RealAIProcessingAdapter,
-)
-from intentcut.backend.database import CommitOutcomeUnknown, Database
-from intentcut.backend.database_models import AIJob
+from intentcut.backend.ai_processing_adapter import RealAIProcessingAdapter
+from intentcut.backend.contracts import AIProcessingError, ProcessingResult
+from intentcut.backend.storage.database import CommitOutcomeUnknown, Database
+from intentcut.backend.storage.database_models import AIJob
 
 logger = logging.getLogger(__name__)
 

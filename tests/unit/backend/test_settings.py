@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from intentcut.backend.backend_settings import BackendSettings
+from intentcut.backend.shared.settings import BackendSettings
 
 
 def test_settings_hide_database_secret(settings):

@@ -4,10 +4,12 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from intentcut.backend.ai_media_inputs import UploadedFirstCutRequest
 from intentcut.backend.ai_processing_adapter import RealAIProcessingAdapter
-from intentcut.backend.api_schemas import FirstCutRequest
-from intentcut.backend.database_models import AIJob
+from intentcut.backend.database.database_models import AIJob
+from intentcut.backend.first_cut.contracts import (
+    FirstCutRequest,
+    UploadedFirstCutRequest,
+)
 
 
 def test_reject_blank_intent():

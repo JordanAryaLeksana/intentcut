@@ -10,23 +10,24 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
-from intentcut.backend.ai_job_routes import (
-    PRIVATE_HEADERS,
-    AIJobLocalAccessMiddleware,
-    create_ai_job_router,
-)
 from intentcut.backend.ai_job_service import AIJobAPIError, AIJobService
-from intentcut.backend.api_schemas import ErrorResponse
-from intentcut.backend.backend_settings import BackendSettings
-from intentcut.backend.database import Database, MediaNotFound, ProjectNotFound
-from intentcut.backend.local_media_storage import LocalMediaStorage
-from intentcut.backend.media_ingestion_service import (
+from intentcut.backend.artifacts.routes import create_artifact_router
+from intentcut.backend.storage.database import Database, MediaNotFound, ProjectNotFound
+from intentcut.backend.jobs.routes import create_ai_job_router
+from intentcut.backend.storage.local_media_storage import LocalMediaStorage
+from intentcut.backend.media_ingestion.routes import create_media_router
+from intentcut.backend.media_ingestion.service import (
     IngestionError,
     MediaIngestionService,
 )
-from intentcut.backend.media_routes import create_media_router
-from intentcut.backend.project_routes import create_project_router
-from intentcut.backend.upload_limits import UploadLimitsMiddleware
+from intentcut.backend.projects.routes import create_project_router
+from intentcut.backend.shared.http_errors import ErrorResponse
+from intentcut.backend.shared.http_security import (
+    PRIVATE_HEADERS,
+    AIJobLocalAccessMiddleware,
+)
+from intentcut.backend.shared.settings import BackendSettings
+from intentcut.backend.shared.upload_limits import UploadLimitsMiddleware
 from intentcut.media.probe_parser import MediaProbe
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,9 @@ def create_app(
     )
     app.include_router(create_project_router(database))
     app.include_router(create_media_router(database, service, settings))
-    app.include_router(create_ai_job_router(AIJobService(database, storage, settings)))
+    ai_service = AIJobService(database, storage, settings)
+    app.include_router(create_ai_job_router(ai_service))
+    app.include_router(create_artifact_router(ai_service))
 
     @app.exception_handler(AIJobAPIError)
     async def ai_job_error(request: Request, exc: AIJobAPIError) -> JSONResponse:

@@ -7,8 +7,8 @@ import pytest
 from intentcut.backend.ai_artifacts import AIArtifactPublisher
 from intentcut.backend.ai_processing_adapter import RealAIProcessingAdapter
 from intentcut.backend.ai_worker import AIJobWorker
-from intentcut.backend.database import CommitOutcomeUnknown
-from intentcut.backend.database_models import AIJob
+from intentcut.backend.database.database import CommitOutcomeUnknown
+from intentcut.backend.database.database_models import AIJob
 
 
 @pytest.fixture

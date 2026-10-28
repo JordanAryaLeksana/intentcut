@@ -10,7 +10,7 @@ from uuid import UUID
 
 import httpx2 as httpx
 
-from intentcut.backend.backend_settings import BackendSettings
+from intentcut.backend.shared.settings import BackendSettings
 from intentcut.backend.worker_cli import run_worker
 from intentcut.media.probe_parser import MediaProbe
 from intentcut.media.render import OutputValidator

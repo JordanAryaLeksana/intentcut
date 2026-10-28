@@ -1,3 +1,13 @@
+from __future__ import annotations
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from intentcut.backend.shared.persistence_errors import CommitOutcomeUnknown
+
+if TYPE_CHECKING:
+    from intentcut.backend.storage.database import Database
+
 import hashlib
 import json
 import logging
@@ -6,14 +16,13 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from intentcut.backend.ai_processing_adapter import ProcessingResult
-from intentcut.backend.database import CommitOutcomeUnknown, Database
-from intentcut.backend.database_models import AIJobArtifact
-from intentcut.backend.local_media_storage import (
+from intentcut.backend.contracts import ProcessingResult
+from intentcut.backend.storage.local_media_storage import (
     LocalMediaStorage,
     StagedFile,
     regular_source,
 )
+from intentcut.backend.storage.database_models import AIJobArtifact
 from intentcut.media.probe_parser import ProbeParser
 from intentcut.media.process_runner import PROBE_TIMEOUT, ProcessRunner
 
