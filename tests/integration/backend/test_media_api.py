@@ -5,8 +5,8 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from intentcut.backend.database.database import CommitOutcomeUnknown
-from intentcut.backend.database.database_models import MediaAsset
+from intentcut.backend.storage.database import CommitOutcomeUnknown
+from intentcut.backend.storage.database_models import MediaAsset
 from intentcut.media.probe_parser import MediaProbe
 
 pytestmark = [pytest.mark.integration, pytest.mark.postgres]

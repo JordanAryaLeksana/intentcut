@@ -1,0 +1,76 @@
+- generic [active] [ref=f2e1]:
+  - link "Skip to content" [ref=f2e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=f2e3]:
+    - banner [ref=f2e4]:
+      - generic [ref=f2e5]: /IntentCut
+      - generic [ref=f2e6]: Design foundation 01
+    - main [ref=f2e7]:
+      - region [ref=f2e8]:
+        - generic [ref=f2e9]:
+          - paragraph [ref=f2e10]: A considered space for creative work
+          - heading "Your AI Storytelling Director." [level=1] [ref=f2e11]: Your AIStorytelling Director.
+        - generic [ref=f2e12]:
+          - paragraph [ref=f2e13]: Quiet surfaces. Clear intention. Room for the story.
+          - paragraph [ref=f2e14]: A visual study of the IntentCut design language. Typography, surfaces, and controls for a focused editing environment.
+          - generic [ref=f2e15]:
+            - link "Explore the palette" [ref=f2e16] [cursor=pointer]:
+              - /url: "#material"
+              - text: Explore the palette
+              - generic [aria-hidden] [ref=f2e17]: ↗
+            - link "View typography" [ref=f2e18] [cursor=pointer]:
+              - /url: "#type"
+      - region [ref=f2e19]:
+        - generic [ref=f2e20]:
+          - heading "Material & light" [level=2] [ref=f2e21]
+          - paragraph [ref=f2e22]: 01 / Semantic palette
+        - generic [ref=f2e23]:
+          - generic [ref=f2e26]:
+            - heading "Canvas" [level=3] [ref=f2e27]
+            - paragraph [ref=f2e28]: background
+          - generic [ref=f2e31]:
+            - heading "Surface" [level=3] [ref=f2e32]
+            - paragraph [ref=f2e33]: surface
+          - generic [ref=f2e36]:
+            - heading "Elevated" [level=3] [ref=f2e37]
+            - paragraph [ref=f2e38]: surface-elevated
+          - generic [ref=f2e41]:
+            - heading "Foreground" [level=3] [ref=f2e42]
+            - paragraph [ref=f2e43]: foreground
+          - generic [ref=f2e46]:
+            - heading "Muted text" [level=3] [ref=f2e47]
+            - paragraph [ref=f2e48]: muted-foreground
+          - generic [ref=f2e51]:
+            - heading "Mint" [level=3] [ref=f2e52]
+            - paragraph [ref=f2e53]: primary
+      - generic [ref=f2e54]:
+        - region [ref=f2e55]:
+          - paragraph [ref=f2e56]: 02 / Type & rhythm
+          - heading "Every detail serves the story." [level=2] [ref=f2e57]: Every detailserves the story.
+          - paragraph [ref=f2e58]: Geist Sans keeps the interface clear and composed. Geist Mono gives technical values a steady rhythm.
+          - generic [ref=f2e59]:
+            - paragraph [ref=f2e60]: Timecode specimen · Geist Mono
+            - paragraph [ref=f2e61]: 00:00:00:00
+        - region [ref=f2e62]:
+          - generic [ref=f2e63]:
+            - heading "Surface study" [level=2] [ref=f2e64]
+            - generic [ref=f2e65]: 03 / Panel specimen
+          - generic [ref=f2e66]:
+            - generic [ref=f2e67]:
+              - heading "Space to focus" [level=3] [ref=f2e69]
+              - paragraph [ref=f2e70]: An elevated surface brings context forward without competing with the work.
+            - generic [ref=f2e71]:
+              - generic [ref=f2e72]:
+                - term [ref=f2e73]: Treatment
+                - definition [ref=f2e74]: Solid, restrained
+              - generic [ref=f2e75]:
+                - term [ref=f2e76]: Accent
+                - definition [ref=f2e77]: Intentional mint
+              - generic [ref=f2e78]:
+                - term [ref=f2e79]: Purpose
+                - definition [ref=f2e80]: Visual reference only
+    - contentinfo [ref=f2e81]:
+      - paragraph [ref=f2e82]: IntentCut · Your AI Storytelling Director
+      - paragraph [ref=f2e83]: Design study / M3.1.2
+  - button "Open Next.js Dev Tools" [ref=f2e89] [cursor=pointer]
+  - alert [ref=f2e93]

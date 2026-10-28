@@ -1,0 +1,58 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - link "Skip to workspace" [ref=f3e3] [cursor=pointer]:
+      - /url: "#workspace"
+    - banner [ref=f3e4]:
+      - link "IntentCut design foundation" [ref=f3e5] [cursor=pointer]:
+        - /url: /
+        - text: / IntentCut
+      - generic [ref=f3e6]:
+        - heading "Untitled project" [level=1] [ref=f3e7]
+        - text: Preview
+      - generic [ref=f3e8]: Workspace preview
+      - paragraph [ref=f3e9]: Export Unavailable in preview
+    - main "Studio workspace preview" [ref=f3e10]:
+      - region [ref=f3e11]:
+        - generic [ref=f3e12]:
+          - heading "Program Monitor" [level=2] [ref=f3e13]
+          - text: 16:9
+        - generic [ref=f3e14]:
+          - generic [ref=f3e16]:
+            - heading "Your story takes shape here" [level=3] [ref=f3e20]
+            - paragraph [ref=f3e21]: No media selected
+          - generic [ref=f3e22]: Program viewPlayback unavailable in preview
+      - region [ref=f3e23]:
+        - generic [ref=f3e24]:
+          - heading "Media Library" [level=2] [ref=f3e25]
+          - text: 0 assets
+        - generic [ref=f3e26]:
+          - generic [ref=f3e27]:
+            - heading "A home for your footage" [level=3] [ref=f3e30]
+            - paragraph [ref=f3e31]: Uploaded video, audio, and images will appear here.
+          - paragraph [ref=f3e32]: Media upload is not available in this preview.
+      - region [ref=f3e33]:
+        - generic [ref=f3e34]:
+          - heading "AI Director" [level=2] [ref=f3e35]: ✳ AI Director
+          - text: Preview
+        - generic [ref=f3e36]:
+          - paragraph [ref=f3e37]: From intention to story
+          - heading "A creative partner, with your vision in mind." [level=3] [ref=f3e38]: A creative partner,with your vision in mind.
+          - paragraph [ref=f3e39]: Describe the story you want to tell. The Director will help shape its structure, pacing, and emotional arc.
+          - generic [ref=f3e40]:
+            - heading "Your creative brief" [level=4] [ref=f3e41]
+            - paragraph [ref=f3e42]: A space for your intent, audience, and tone.
+            - text: Brief submission is not available yet.
+          - paragraph [ref=f3e43]: AI conversations and suggestions will arrive in a future update.
+      - region [ref=f3e44]:
+        - generic [ref=f3e45]:
+          - heading "Narrative Timeline" [level=2] [ref=f3e46]
+          - text: Storyboard · Preview
+        - generic [ref=f3e47]:
+          - generic [ref=f3e48]: Story sequence0 scenes
+          - generic [ref=f3e50]:
+            - heading "Every story starts with a first scene" [level=3] [ref=f3e51]
+            - paragraph [ref=f3e52]: Your storyboard will appear here as your narrative develops.
+            - text: Scene editing is unavailable in this preview.
+    - contentinfo [ref=f3e53]: IntentCut · Your AI Storytelling DirectorLayout preview · No editing features connected
+  - button "Open Next.js Dev Tools" [ref=f3e59] [cursor=pointer]
+  - alert [ref=f3e63]

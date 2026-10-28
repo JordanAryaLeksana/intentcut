@@ -15,7 +15,7 @@ from intentcut.ai.schemas import VideoUnderstandingResult
 from intentcut.ai.story_director import GroundedWindow, StorySelection
 from intentcut.ai.temporal_windows import TemporalWindow
 from intentcut.ai.window_analysis import to_window_evidence
-from intentcut.backend.database.local_media_storage import regular_source
+from intentcut.backend.storage.local_media_storage import regular_source
 
 
 class Muse(Protocol):

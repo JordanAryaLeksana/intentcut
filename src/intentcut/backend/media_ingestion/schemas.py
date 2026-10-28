@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from intentcut.backend.database.database_models import MediaAsset
+from intentcut.backend.storage.database_models import MediaAsset
 
 
 class FrameRateResponse(BaseModel):

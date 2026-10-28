@@ -12,8 +12,8 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 from intentcut.backend.app import create_app
-from intentcut.backend.database.database import Database
-from intentcut.backend.database.local_media_storage import LocalMediaStorage
+from intentcut.backend.storage.database import Database
+from intentcut.backend.storage.local_media_storage import LocalMediaStorage
 from intentcut.backend.shared.settings import BackendSettings
 
 

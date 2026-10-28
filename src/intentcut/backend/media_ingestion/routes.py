@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from intentcut.backend.database.database import Database
+from intentcut.backend.storage.database import Database
 from intentcut.backend.media_ingestion.schemas import (
     MediaAssetResponse,
     MediaListResponse,

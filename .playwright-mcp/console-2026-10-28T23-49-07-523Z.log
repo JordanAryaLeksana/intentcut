@@ -1,0 +1,29 @@
+[     899ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
+[     921ms] [LOG] [HMR] connected @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
+[    1728ms] [ERROR] Error: Route "/projects/[projectId]": Next.js encountered runtime data during prerendering.
+
+`cookies()`, `headers()`, `params`, or `searchParams` accessed outside of `<Suspense>` prevents the route from being prerendered, blocking the page load and leading to a slower user experience.
+
+Ways to fix this:
+  - [stream] Provide a placeholder with `<Suspense fallback={...}>` around the data access
+  - [block] Set `export const instant = false` to allow a blocking route
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-runtime
+    at ProjectPage (about://React/Server/file:///home/jordan/Documents/Hackaton-Meta/intentcut/frontend/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__01rqwf4evzm4x._.js?70:35:27)
+    at resolveErrorDev (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:2029:105)
+    at getOutlinedModel (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:1568:28)
+    at parseModelString (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:1688:50)
+    at reviveModel (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:2634:66)
+    at reviveModel (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:2637:61)
+    at reviveModel (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:2716:112)
+    at parseModel (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:2629:16)
+    at initializeModelChunk (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:1141:25)
+    at resolveModelChunk (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:1039:43)
+    at processFullStringRow (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:2585:371)
+    at processFullBinaryRow (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:2507:9)
+    at processBinaryChunk (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:2614:221)
+    at progress (http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-67asdr9._.js:2801:13) @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:995
+[   52258ms] [LOG] [Fast Refresh] rebuilding @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
+[   52309ms] [LOG] [Fast Refresh] done in 49ms @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
+[   52392ms] [LOG] [Fast Refresh] done in 49ms @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
+[   52572ms] [LOG] [Fast Refresh] done in 49ms @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719

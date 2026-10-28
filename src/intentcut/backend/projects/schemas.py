@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from intentcut.backend.database.database_models import Project
+from intentcut.backend.storage.database_models import Project
 
 
 class ProjectCreate(BaseModel):

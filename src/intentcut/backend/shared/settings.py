@@ -15,6 +15,7 @@ class BackendSettings(BaseSettings):
     )
 
     database_url: SecretStr
+    cors_origins: list[str] = Field(default_factory=list)
     media_root: Path = Path(".local/media")
     ai_jobs_local_enabled: bool = False
     ai_processing_enabled: bool = False

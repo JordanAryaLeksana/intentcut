@@ -6,15 +6,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
 from intentcut.backend.ai_job_service import AIJobAPIError, AIJobService
 from intentcut.backend.artifacts.routes import create_artifact_router
-from intentcut.backend.storage.database import Database, MediaNotFound, ProjectNotFound
 from intentcut.backend.jobs.routes import create_ai_job_router
-from intentcut.backend.storage.local_media_storage import LocalMediaStorage
 from intentcut.backend.media_ingestion.routes import create_media_router
 from intentcut.backend.media_ingestion.service import (
     IngestionError,
@@ -28,6 +27,8 @@ from intentcut.backend.shared.http_security import (
 )
 from intentcut.backend.shared.settings import BackendSettings
 from intentcut.backend.shared.upload_limits import UploadLimitsMiddleware
+from intentcut.backend.storage.database import Database, MediaNotFound, ProjectNotFound
+from intentcut.backend.storage.local_media_storage import LocalMediaStorage
 from intentcut.media.probe_parser import MediaProbe
 
 logger = logging.getLogger(__name__)
@@ -69,10 +70,21 @@ def create_app(
 
     app = FastAPI(title="IntentCut Media Ingestion", version="0.2.0", lifespan=lifespan)
     app.add_middleware(
-        UploadLimitsMiddleware, max_body_bytes=settings.max_request_bytes
+    UploadLimitsMiddleware,
+         max_body_bytes=settings.max_request_bytes,
     )
     app.add_middleware(
-        AIJobLocalAccessMiddleware, enabled=settings.ai_jobs_local_enabled
+        AIJobLocalAccessMiddleware,
+        enabled=settings.ai_jobs_local_enabled,
+    )
+
+    # Browser access from the local Next.js development server.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
     )
     app.include_router(create_project_router(database))
     app.include_router(create_media_router(database, service, settings))

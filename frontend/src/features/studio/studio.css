@@ -1,0 +1,78 @@
+.studio-shell { min-height: 100dvh; display: flex; flex-direction: column; background: var(--background); }
+.studio-topbar { display: flex; align-items: center; flex-wrap: wrap; gap: 20px; min-height: 76px; padding: 16px 24px; border-bottom: 1px solid var(--border); }
+.studio-brand { font-size: 20px; font-weight: 600; letter-spacing: -.04em; padding: 6px 0; }
+.studio-brand span { color: var(--primary); margin-right: 5px; }
+.studio-brand:hover { color: var(--primary); }
+.studio-project { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; border-left: 1px solid var(--border); padding-left: 24px; }
+.studio-project h1 { font-size: 14px; font-weight: 500; letter-spacing: 0; }
+.studio-badge { padding: 2px 7px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--muted-foreground); font-size: 11px; }
+.studio-status { margin-left: auto; color: var(--primary); font-size: 12px; }
+.studio-export { border-left: 1px solid var(--border); padding-left: 20px; font-size: 13px; }
+.studio-export span { display: block; color: var(--muted-foreground); font-size: 11px; }
+.studio-workspace { flex: 1; display: grid; grid-template-columns: minmax(190px, .85fr) minmax(0, 2.8fr) minmax(230px, 1fr); grid-template-areas: 'library monitor director' 'timeline timeline timeline'; grid-template-rows: minmax(410px, 1fr) minmax(230px, auto); gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
+.studio-workspace > * { min-width: 0; }
+.studio-panel { background: var(--surface); display: flex; flex-direction: column; }
+.studio-panelHeader { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.studio-panelHeader h2 { font-size: 13px; font-weight: 600; letter-spacing: 0; }
+.studio-panelHeader > span { font-size: 11px; color: var(--muted-foreground); }
+.studio-library { grid-area: library; }
+.studio-libraryBody { display: flex; flex: 1; flex-direction: column; padding: 24px 20px; }
+.studio-emptyLibrary { margin: auto 0; padding: 28px 0; }
+.studio-emptyLibrary svg { color: var(--muted-foreground); margin-bottom: 20px; }
+.studio-emptyLibrary h3 { font-size: 14px; font-weight: 500; }
+.studio-emptyLibrary p, .studio-directorBody > p { color: var(--muted-foreground); font-size: 13px; margin-top: 12px; }
+.studio-availability { font-size: 12px; color: var(--muted-foreground); border-top: 1px solid var(--border); padding-top: 16px; margin-top: 24px; }
+.studio-monitor { grid-area: monitor; background: var(--background); }
+.studio-monitorBody { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 24px 28px; }
+.studio-frame { aspect-ratio: 16 / 9; width: 100%; border: 1px solid var(--border); display: grid; place-items: center; text-align: center; padding: 16px; }
+.studio-monitorIcon { width: 48px; height: 36px; color: var(--primary); margin: 0 auto 24px; }
+.studio-frame h3 { font-size: clamp(14px, 1.4vw, 20px); font-weight: 500; }
+.studio-frame p { color: var(--muted-foreground); font-size: 12px; margin-top: 8px; }
+.studio-monitorMeta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 16px; color: var(--muted-foreground); font-size: 11px; }
+.studio-director { grid-area: director; }
+.studio-directorMark { color: var(--primary); margin-right: 5px; }
+.studio-directorBody { padding: 28px 20px; }
+.studio-overline { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted-foreground); }
+.studio-directorBody > .studio-overline { font-size: 10px; color: var(--primary); margin: 0 0 20px; }
+.studio-directorBody h3 { font-size: 21px; font-weight: 500; line-height: 1.35; letter-spacing: -.025em; }
+.studio-brief { margin-top: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-elevated); padding: 16px; }
+.studio-brief h4 { font-size: 13px; font-weight: 500; }
+.studio-brief p { color: var(--muted-foreground); font-size: 13px; margin-top: 12px; }
+.studio-brief span { display: block; color: var(--muted-foreground); font-size: 11px; margin-top: 24px; }
+.studio-timeline { grid-area: timeline; }
+.studio-timelineBody { display: flex; flex: 1; min-height: 180px; }
+.studio-trackLabel { width: 160px; flex-shrink: 0; padding: 24px 20px; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; }
+.studio-trackLabel > :last-child { font-size: 12px; color: var(--muted-foreground); }
+.studio-emptyTimeline { flex: 1; padding: 24px; display: grid; place-items: center; text-align: center; background: var(--background); }
+.studio-emptyTimeline h3 { font-size: 15px; font-weight: 500; }
+.studio-emptyTimeline p { color: var(--muted-foreground); font-size: 13px; margin-top: 10px; }
+.studio-emptyTimeline span { display: block; color: var(--muted-foreground); font-size: 11px; margin-top: 16px; }
+.studio-footer { padding: 10px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--muted-foreground); }
+@media (max-width: 1199px) and (min-width: 900px) {
+  .studio-workspace { grid-template-columns: 190px minmax(0, 1fr) 230px; }
+  .studio-panelHeader { padding-inline: 16px; }
+  .studio-monitorBody { padding-inline: 20px; }
+}
+@media (max-width: 899px) {
+  .studio-workspace { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: 'monitor monitor' 'library director' 'timeline timeline'; grid-template-rows: auto; }
+  .studio-status { display: none; }
+  .studio-export { margin-left: auto; }
+  .studio-monitorBody { padding: 24px; }
+}
+@media (max-width: 599px) {
+  .studio-topbar { gap: 12px 16px; padding: 16px; }
+  .studio-brand { font-size: 19px; }
+  .studio-project { border: 0; padding: 0; margin-left: auto; gap: 8px; }
+  .studio-project h1 { font-size: 12px; }
+  .studio-export { width: 100%; border: 0; border-top: 1px solid var(--border); padding: 10px 0 0; display: flex; justify-content: space-between; }
+  .studio-workspace { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'monitor' 'library' 'director' 'timeline'; }
+  .studio-monitorBody { padding: 20px 16px; }
+  .studio-monitorIcon { width: 32px; height: 24px; margin-bottom: 14px; }
+  .studio-panelHeader { padding-inline: 16px; }
+  .studio-libraryBody, .studio-directorBody { padding: 24px 20px; }
+  .studio-emptyLibrary { padding: 0; }
+  .studio-timelineBody { flex-direction: column; }
+  .studio-trackLabel { width: auto; flex-direction: row; justify-content: space-between; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  .studio-emptyTimeline { padding: 32px 20px; min-height: 200px; }
+  .studio-footer { padding: 16px; }
+}

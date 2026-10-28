@@ -1,0 +1,14 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - paragraph [ref=e3]: IntentCut Studio
+    - heading "Start with a story." [level=1] [ref=e4]
+    - paragraph [ref=e5]: Create a project to save video files to your local IntentCut backend.
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e8]: Project name
+        - textbox "Project name" [ref=e9]
+        - paragraph [ref=e10]: 1–200 characters. Your project receives a unique URL.
+      - alert
+      - button "Create project" [disabled] [ref=e11]
+      - status [ref=e12]: Local development · No automatic retries
+  - alert [ref=e13]

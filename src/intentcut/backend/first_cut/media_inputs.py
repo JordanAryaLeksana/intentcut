@@ -8,11 +8,11 @@ from typing import BinaryIO
 
 from intentcut.ai.temporal_windows import TemporalWindow, plan_temporal_window
 from intentcut.backend.contracts import AIProcessingError
-from intentcut.backend.database.database_models import MediaAsset
+from intentcut.backend.storage.database_models import MediaAsset
 from intentcut.backend.first_cut.contracts import (
     UploadedFirstCutRequest as UploadedFirstCutRequest,
 )
-from intentcut.backend.database.local_media_storage import LocalMediaStorage
+from intentcut.backend.storage.local_media_storage import LocalMediaStorage
 from intentcut.backend.shared.settings import BackendSettings
 
 

@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from intentcut.backend.database.database import Database
+from intentcut.backend.storage.database import Database
 from intentcut.backend.projects.schemas import (
     ProjectCreate,
     ProjectResponse,
