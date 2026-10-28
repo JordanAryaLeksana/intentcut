@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
     func,
 )
@@ -23,7 +24,7 @@ from intentcut.backend.ai_jobs import AIJobStatus
 
 
 class Base(DeclarativeBase):
-    """Shared SQLAlchemy metadata for the two M1B tables."""
+    """Shared SQLAlchemy metadata; initialized explicitly with create_all."""
 
 
 class Project(Base):
@@ -176,4 +177,28 @@ class AIJob(Base):
         nullable=False,
         default=0,
         server_default="0",
+    )
+
+
+class AIJobArtifact(Base):
+    __tablename__ = "ai_job_artifacts"
+    __table_args__ = (
+        UniqueConstraint("job_id", "kind", name="uq_ai_job_artifact_kind"),
+        CheckConstraint("kind IN ('video', 'storyboard')", name="artifact_kind"),
+        CheckConstraint("size_bytes > 0", name="artifact_size"),
+        CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="artifact_sha256"),
+        CheckConstraint(
+            "storage_key ~ '^projects/[0-9a-f-]{36}/[0-9a-f-]{36}/original$'",
+            name="artifact_storage_key",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    job_id: Mapped[UUID] = mapped_column(ForeignKey("ai_jobs.id", ondelete="RESTRICT"))
+    kind: Mapped[str] = mapped_column(String(16))
+    storage_key: Mapped[str] = mapped_column(Text, unique=True)
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
     )

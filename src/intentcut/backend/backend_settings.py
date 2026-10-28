@@ -16,6 +16,17 @@ class BackendSettings(BaseSettings):
 
     database_url: SecretStr
     media_root: Path = Path(".local/media")
+    ai_jobs_local_enabled: bool = False
+    ai_processing_enabled: bool = False
+    model_api_key: SecretStr | None = None
+    ai_max_media: int = Field(default=4, ge=1, le=10)
+    ai_max_windows: int = Field(default=12, ge=1, le=12)
+    ai_max_source_bytes: int = Field(default=512 * 1024 * 1024, gt=0)
+    ai_max_remote_file_bytes: int = Field(
+        default=25 * 1024 * 1024, gt=0, le=25 * 1024 * 1024
+    )
+    ai_max_remote_total_bytes: int = Field(default=100 * 1024 * 1024, gt=0)
+    ai_max_inference_requests: int = Field(default=13, ge=2, le=13)
     max_upload_files: int = Field(default=10, ge=1, le=10)
     max_file_bytes: int = Field(default=128 * 1024 * 1024, gt=0)
     max_request_bytes: int = Field(default=512 * 1024 * 1024, gt=0)

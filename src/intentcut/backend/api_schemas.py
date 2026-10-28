@@ -1,10 +1,12 @@
 """Public response allowlists keep storage paths and probe diagnostics private."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from intentcut.backend.ai_jobs import AIJobStatus
 from intentcut.backend.database_models import MediaAsset, Project
 
 
@@ -65,6 +67,91 @@ class ErrorResponse(BaseModel):
     code: str
     message: str
     file_index: int | None = None
+
+
+class FirstCutRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    kind: Literal["first_cut"]
+    intent: str = Field(min_length=1, max_length=1000)
+    target_seconds: float = Field(gt=0, le=120, allow_inf_nan=False, strict=True)
+    media_ids: list[UUID] = Field(min_length=1, max_length=10)
+
+    @field_validator("media_ids")
+    @classmethod
+    def unique_media(cls, value: list[UUID]) -> list[UUID]:
+        if len(value) != len(set(value)):
+            raise ValueError("Media IDs must be unique")
+        return value
+
+
+class AIJobResponse(BaseModel):
+    id: UUID
+    status: AIJobStatus
+    created_at: datetime
+    updated_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    attempt_count: int
+    error_code: str | None
+
+
+class AIJobAcceptedResponse(BaseModel):
+    id: UUID
+    status: Literal["queued"]
+    status_url: str
+
+
+class AIJobArtifactResponse(BaseModel):
+    id: UUID
+    kind: Literal["video", "storyboard"]
+    size_bytes: int
+    download_url: str
+
+
+class AIJobArtifactListResponse(BaseModel):
+    items: list[AIJobArtifactResponse]
+
+
+class PublicStoryboardCut(BaseModel):
+    """Numeric allowlist: even prose fields can contain paths or credentials."""
+
+    model_config = ConfigDict(extra="ignore", strict=True)
+    window_index: int = Field(ge=0)
+    media_id: UUID | None = Field(default=None, strict=False)
+    source_window_index: int | None = Field(default=None, ge=0)
+    playback_order: int | None = Field(default=None, ge=0)
+    start_seconds: float = Field(ge=0, allow_inf_nan=False)
+    end_seconds: float = Field(gt=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def valid_range(self) -> "PublicStoryboardCut":
+        if self.end_seconds <= self.start_seconds:
+            raise ValueError("Invalid cut range")
+        return self
+
+
+class PublicStoryboard(BaseModel):
+    model_config = ConfigDict(extra="ignore", strict=True)
+    target_seconds: float = Field(gt=0, le=120, allow_inf_nan=False)
+    total_seconds: float = Field(gt=0, allow_inf_nan=False)
+    render_seconds: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    cuts: list[PublicStoryboardCut] = Field(min_length=1, max_length=12)
+
+    @model_validator(mode="after")
+    def valid_timeline(self) -> "PublicStoryboard":
+        total = sum(cut.end_seconds - cut.start_seconds for cut in self.cuts)
+        if (
+            len({cut.window_index for cut in self.cuts}) != len(self.cuts)
+            or total > self.target_seconds + 1e-6
+            or abs(total - self.total_seconds) > 1e-6
+            or (
+                self.render_seconds is not None
+                and self.render_seconds > self.target_seconds + 1e-6
+            )
+        ):
+            raise ValueError("Invalid timeline")
+        return self
 
 
 def project_response(project: Project) -> ProjectResponse:

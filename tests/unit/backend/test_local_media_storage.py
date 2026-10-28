@@ -62,3 +62,19 @@ def test_publication_failure_removes_only_its_new_directory(storage, monkeypatch
         with pytest.raises(PermissionError):
             storage.publish(staged.path, project_id, media_id)
     assert not (storage.root / "projects" / str(project_id) / str(media_id)).exists()
+
+
+@pytest.mark.parametrize("unsafe", ["symlink", "parent_symlink", "traversal"])
+def test_refuses_unsafe_storage_root(tmp_path, unsafe):
+    from intentcut.backend.local_media_storage import LocalMediaStorage
+
+    real = tmp_path / "real"
+    real.mkdir()
+    if unsafe == "traversal":
+        root = real / ".." / "storage"
+    else:
+        link = tmp_path / "link"
+        link.symlink_to(real, target_is_directory=True)
+        root = link if unsafe == "symlink" else link / "storage"
+    with pytest.raises(ValueError, match="traversal or symlinks"):
+        LocalMediaStorage(root, 2048, 64)

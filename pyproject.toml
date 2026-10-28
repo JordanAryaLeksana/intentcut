@@ -24,6 +24,7 @@ dependencies = [
 [project.scripts]
 intentcut-render = "intentcut.media.cli:main"
 intentcut-init-db = "intentcut.backend.database:main"
+intentcut-ai-worker = "intentcut.backend.worker_cli:main"
 
 [dependency-groups]
 dev = [

@@ -21,6 +21,7 @@ def test_worker_completes_successful_job(database):
     worker = AIJobWorker(
         database=database,
         processor=fake_processor,
+        allow_artifact_free_processor=True,
     )
 
     assert worker.process_one() is True
@@ -69,6 +70,7 @@ def test_worker_does_nothing_when_queue_empty(database):
     worker = AIJobWorker(
         database=database,
         processor=fake_processor,
+        allow_artifact_free_processor=True,
     )
 
     assert worker.process_one() is False
@@ -107,6 +109,7 @@ def test_worker_renews_lease_during_processing(
     worker = AIJobWorker(
         database,
         processor,
+        allow_artifact_free_processor=True,
         lease_seconds=10,
         heartbeat_interval_seconds=0.1,
     )

@@ -1,4 +1,3 @@
-
 import argparse
 import hashlib
 import json
@@ -7,33 +6,24 @@ import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from time import perf_counter
 
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
 
-from intentcut.ai.schemas import VideoUnderstandingResult
+from intentcut.ai.muse import MAX_CLIP_BYTES, MODEL, analyze_one
 from intentcut.ai.temporal_windows import plan_temporal_window
 from intentcut.ai.window_analysis import to_window_evidence
-
-MODEL = "muse-spark-1.3"
-MAX_CLIP_BYTES = 25 * 1024 * 1024
-
-PROMPT = (
-    "You are IntentCut's video editor. Analyze only this short video. "
-    "Describe what is visibly present and identify up to three useful "
-    "visual moments and their editorial value. Do not invent events or "
-    "dialogue. Always set start_seconds and end_seconds to null because "
-    "source timestamps are assigned outside the model."
-)
 
 
 def probe_duration(path: Path) -> float:
     result = subprocess.run(
         [
             "ffprobe",
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
             str(path),
         ],
         capture_output=True,
@@ -52,86 +42,6 @@ def file_digest(path: Path) -> str:
             digest.update(chunk)
 
     return digest.hexdigest()
-
-
-def analyze_one(
-    client: OpenAI,
-    clip: Path,
-) -> tuple[VideoUnderstandingResult, dict]:
-    remote_id = None
-
-    try:
-        started = perf_counter()
-
-        with clip.open("rb") as source:
-            uploaded = client.files.create(
-                purpose="user_data",
-                expires_after={
-                    "anchor": "created_at",
-                    "seconds": 3600,
-                },
-                file=source,
-            )
-
-        remote_id = uploaded.id
-        upload_seconds = perf_counter() - started
-
-        started = perf_counter()
-
-        response = client.responses.create(
-            model=MODEL,
-            store=False,
-            reasoning={"effort": "low"},
-            max_output_tokens=1500,
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "video_understanding",
-                    "strict": True,
-                    "schema": VideoUnderstandingResult.model_json_schema(),
-                }
-            },
-            input=[
-                {
-                    "type": "message",
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": PROMPT},
-                        {"type": "input_file", "file_id": remote_id},
-                    ],
-                }
-            ],
-        )
-
-        inference_seconds = perf_counter() - started
-
-        if response.status != "completed" or not response.output_text:
-            raise RuntimeError("Muse returned an incomplete or empty response")
-
-        parsed = VideoUnderstandingResult.model_validate_json(
-            response.output_text
-        )
-
-        usage = response.usage
-
-        return parsed, {
-            "upload_seconds": round(upload_seconds, 3),
-            "inference_seconds": round(inference_seconds, 3),
-            "input_tokens": usage.input_tokens if usage else None,
-            "output_tokens": usage.output_tokens if usage else None,
-            "total_tokens": usage.total_tokens if usage else None,
-        }
-
-    finally:
-        if remote_id is not None:
-            try:
-                client.files.delete(remote_id)
-            except Exception:
-                print(
-                    "WARNING: Remote cleanup failed; "
-                    "file expires in one hour.",
-                    file=sys.stderr,
-                )
 
 
 def main() -> int:
@@ -167,13 +77,8 @@ def main() -> int:
         for window in windows:
             clip = clips / f"window_{window.index:03d}.mp4"
 
-            if (
-                not clip.is_file()
-                or not 0 < clip.stat().st_size <= MAX_CLIP_BYTES
-            ):
-                raise ValueError(
-                    f"Missing or oversized extracted clip: {clip}"
-                )
+            if not clip.is_file() or not 0 < clip.stat().st_size <= MAX_CLIP_BYTES:
+                raise ValueError(f"Missing or oversized extracted clip: {clip}")
 
             expected = {
                 "model": MODEL,
@@ -190,10 +95,7 @@ def main() -> int:
             if cached:
                 old = json.loads(cache.read_text(encoding="utf-8"))
 
-                if any(
-                    old.get(key) != value
-                    for key, value in expected.items()
-                ):
+                if any(old.get(key) != value for key, value in expected.items()):
                     raise ValueError(f"Stale cache found: {cache}")
 
             planned.append((window, clip, cache, cached, expected))
@@ -244,9 +146,7 @@ def main() -> int:
                 **expected,
                 "timing_precision": "coarse_window",
                 "summary": result.summary,
-                "observations": [
-                    asdict(item) for item in observations
-                ],
+                "observations": [asdict(item) for item in observations],
                 "metrics": metrics,
             }
 

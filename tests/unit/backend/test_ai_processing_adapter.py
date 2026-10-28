@@ -1,24 +1,23 @@
-
-from pathlib import Path
-from types import SimpleNamespace
+from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
 
-from intentcut.backend.ai_processing_adapter import (
-    CachedFirstCutRequest,
-    RealAIProcessingAdapter,
-)
+from intentcut.backend.ai_media_inputs import UploadedFirstCutRequest
+from intentcut.backend.ai_processing_adapter import RealAIProcessingAdapter
+from intentcut.backend.api_schemas import FirstCutRequest
+from intentcut.backend.database_models import AIJob
 
 
 def test_reject_blank_intent():
     with pytest.raises(ValidationError):
-        CachedFirstCutRequest.model_validate(
+        FirstCutRequest.model_validate(
             {
                 "kind": "first_cut",
                 "intent": "   ",
                 "target_seconds": 10,
+                "media_ids": [str(uuid4())],
             }
         )
 
@@ -26,71 +25,55 @@ def test_reject_blank_intent():
 def test_reject_invalid_duration():
     for seconds in (0, -1, float("inf"), 121):
         with pytest.raises(ValidationError):
-            CachedFirstCutRequest.model_validate(
+            FirstCutRequest.model_validate(
                 {
                     "kind": "first_cut",
                     "intent": "Create a coding video",
                     "target_seconds": seconds,
+                    "media_ids": [str(uuid4())],
                 }
             )
 
 
-def test_adapter_orchestrates_existing_pipeline(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-):
-    monkeypatch.setenv("MODEL_API_KEY", "unit-test-placeholder")
-
-    evidence = tmp_path / "cached_evidence"
-    evidence.mkdir()
-
-    (evidence / "window_000.json").write_text(
-        '{"window_index": 0}',
-        encoding="utf-8",
-    )
-
-    job = SimpleNamespace(
-        id=uuid4(),
-        attempt_count=1,
-        request_payload={
-            "kind": "first_cut",
-            "intent": "Show the coding workspace",
-            "target_seconds": 10,
-        },
-    )
-
+def test_adapter_rejects_legacy_cached_request(database, storage, settings):
+    muse = Mock()
     adapter = RealAIProcessingAdapter(
-        repository_root=tmp_path,
-        evidence_directory=evidence,
+        database=database, storage=storage, settings=settings, muse=muse
     )
-
-    commands = []
-
-    def fake_run(command, *, timeout, log_path):
-        commands.append(command)
-
-        if "story_director.py" in command[1]:
-            evidence_dir = Path(
-                command[command.index("--evidence") + 1]
+    with pytest.raises(ValidationError):
+        adapter(
+            AIJob(
+                id=uuid4(),
+                request_payload={
+                    "kind": "first_cut",
+                    "intent": "old clip_b request",
+                    "target_seconds": 10,
+                },
             )
-            (evidence_dir / "storyboard_draft.json").write_text(
-                '{"cuts": []}',
-                encoding="utf-8",
-            )
+        )
+    muse.analyze.assert_not_called()
+    database.get_media.assert_not_called()
+    assert not (storage.root / ".jobs").exists()
 
-        if "render_storyboard.py" in command[1]:
-            output = Path(
-                command[command.index("--output") + 1]
-            )
-            output.write_bytes(b"fake-mp4-for-unit-test")
 
-    monkeypatch.setattr(adapter, "_run", fake_run)
-
-    result = adapter(job)
-
-    assert result.storyboard_path.is_file()
-    assert result.staged_video_path.is_file()
-    assert len(commands) == 3
-    assert "story_director.py" in commands[0][1]
-    assert "render_storyboard.py" in commands[1][1]
-    assert commands[2][0] == "ffmpeg"
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"source_sha256": {}},
+        {"pipeline_version": "cached"},
+        {"source_sha256": {str(uuid4()): "a" * 64}},
+    ],
+)
+def test_persisted_fingerprint_contract(change):
+    media_id = str(uuid4())
+    payload = {
+        "kind": "first_cut",
+        "intent": "story",
+        "target_seconds": 10,
+        "media_ids": [media_id],
+        "pipeline_version": "uploaded_v1",
+        "source_sha256": {media_id: "a" * 64},
+        **change,
+    }
+    with pytest.raises(ValidationError):
+        UploadedFirstCutRequest.model_validate(payload)

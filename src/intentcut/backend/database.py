@@ -8,7 +8,14 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
 from intentcut.backend.ai_jobs import AIJobStatus
-from intentcut.backend.database_models import AIJob, Base, MediaAsset, Project
+from intentcut.backend.database_models import (
+    AIJob,
+    AIJobArtifact,
+    Base,
+    MediaAsset,
+    Project,
+)
+from intentcut.backend.local_media_storage import LocalMediaStorage
 
 
 class ProjectNotFound(Exception):
@@ -149,14 +156,19 @@ class Database:
                 )
             )
 
-    def claim_next_ai_job(self, *, lease_seconds:int = 120) -> AIJob | None:
+    def claim_next_ai_job(
+        self, *, lease_seconds: int = 120, job_id: UUID | None = None
+    ) -> AIJob | None:
         """Atomically claim the oldest available queued job."""
         if type(lease_seconds) is not int or not 1 <= lease_seconds <= 3600:
             raise ValueError("Invalid lease duration")
+        if job_id is not None and not isinstance(job_id, UUID):
+            raise ValueError("Invalid job ID")
         with self._sessions.begin() as session:
             job = session.scalar(
                 select(AIJob)
                 .where(AIJob.status == AIJobStatus.QUEUED.value)
+                .where(AIJob.id == job_id if job_id is not None else True)
                 .order_by(AIJob.created_at, AIJob.id)
                 .limit(1)
                 .with_for_update(skip_locked=True)
@@ -205,13 +217,122 @@ class Database:
                 .returning(AIJob.id)
             )
             return updated_id is not None
+
+    def complete_ai_job_with_artifacts(
+        self,
+        project_id: UUID,
+        job_id: UUID,
+        lease_token: UUID,
+        artifacts: Sequence[AIJobArtifact],
+    ) -> bool:
+        """Register both final files and fence success in one short transaction.
+
+        False and pre-COMMIT exceptions mean no changes committed. Once COMMIT
+        is attempted, any exception is uncertain: callers must retain files.
+        """
+        if not isinstance(lease_token, UUID):
+            raise ValueError("Invalid lease token")
+        if len(artifacts) != 2 or {a.kind for a in artifacts} != {
+            "video",
+            "storyboard",
+        }:
+            raise ValueError("Both final artifact kinds are required")
+        for artifact in artifacts:
+            if (
+                not isinstance(artifact.id, UUID)
+                or artifact.job_id != job_id
+                or artifact.storage_key
+                != LocalMediaStorage.storage_key(project_id, artifact.id)
+            ):
+                raise ValueError("Invalid artifact ownership or storage key")
+
+        commit_attempted = False
+        try:
+            with self._sessions() as session:
+                # Serialize completion with heartbeat, recovery, and other workers.
+                job = session.scalar(
+                    select(AIJob)
+                    .where(AIJob.id == job_id, AIJob.project_id == project_id)
+                    .with_for_update()
+                )
+                now = session.scalar(select(func.clock_timestamp()))
+                if (
+                    job is None
+                    or job.status != AIJobStatus.RUNNING.value
+                    or job.lease_token != lease_token
+                    or job.lease_expires_at is None
+                    or job.lease_expires_at <= now
+                ):
+                    return False
+                # Always INSERT. Never attach caller-owned ORM instances, which
+                # could otherwise UPDATE an existing artifact after detachment.
+                session.add_all(
+                    [
+                        AIJobArtifact(
+                            id=a.id,
+                            job_id=a.job_id,
+                            kind=a.kind,
+                            storage_key=a.storage_key,
+                            size_bytes=a.size_bytes,
+                            sha256=a.sha256,
+                        )
+                        for a in artifacts
+                    ]
+                )
+                session.flush()
+                # Recheck wall-clock expiry after inserts, while still holding the lock.
+                updated_id = session.scalar(
+                    update(AIJob)
+                    .where(
+                        AIJob.id == job_id,
+                        AIJob.status == AIJobStatus.RUNNING.value,
+                        AIJob.lease_token == lease_token,
+                        AIJob.lease_expires_at > func.clock_timestamp(),
+                    )
+                    .values(
+                        status=AIJobStatus.SUCCEEDED.value,
+                        error_code=None,
+                        lease_token=None,
+                        lease_expires_at=None,
+                        finished_at=func.clock_timestamp(),
+                        updated_at=func.clock_timestamp(),
+                    )
+                    .returning(AIJob.id)
+                )
+                if updated_id is None:
+                    return False  # Session.close rolls back the inserted rows too.
+                commit_attempted = True
+                session.commit()
+                return True
+        except BaseException as exc:
+            if commit_attempted:
+                # Includes failures returning a connection after a successful COMMIT.
+                raise CommitOutcomeUnknown from exc
+            raise
+
+    def list_ai_job_artifacts(
+        self, project_id: UUID, job_id: UUID
+    ) -> list[AIJobArtifact]:
+        """Read final references scoped through the owning project."""
+        with self._sessions() as session:
+            return list(
+                session.scalars(
+                    select(AIJobArtifact)
+                    .join(AIJob)
+                    .where(
+                        AIJob.project_id == project_id, AIJobArtifact.job_id == job_id
+                    )
+                    .order_by(AIJobArtifact.kind)
+                )
+            )
+
     def fail_ai_job(
-            self,
-            project_id: UUID,
-            job_id: UUID,
-            lease_token: UUID,
-            error_code: str,
-    )-> bool:
+        self,
+        project_id: UUID,
+        job_id: UUID,
+        lease_token: UUID,
+        error_code: str,
+    ) -> bool:
         if not isinstance(lease_token, UUID):
             raise ValueError("Invalid lease token")
 
@@ -225,11 +346,11 @@ class Database:
                     AIJob.id == job_id,
                     AIJob.project_id == project_id,
                     AIJob.status == AIJobStatus.RUNNING.value,
-                      AIJob.lease_token == lease_token,
+                    AIJob.lease_token == lease_token,
                     AIJob.lease_expires_at > func.clock_timestamp(),
                 )
                 .values(
-                      status=AIJobStatus.FAILED.value,
+                    status=AIJobStatus.FAILED.value,
                     error_code=error_code,
                     lease_token=None,
                     lease_expires_at=None,
@@ -285,6 +406,7 @@ class Database:
         self,
         *,
         max_attempts: int = 1,
+        job_id: UUID | None = None,
     ) -> AIJob | None:
         """Recover one expired job using a bounded retry policy."""
 
@@ -293,10 +415,13 @@ class Database:
             or not 1 <= max_attempts <= 3
         ):
             raise ValueError("Invalid maximum attempts")
+        if job_id is not None and not isinstance(job_id, UUID):
+            raise ValueError("Invalid job ID")
 
         with self._sessions.begin() as session:
             job = session.scalar(
                 select(AIJob)
+                .where(AIJob.id == job_id if job_id is not None else True)
                 .where(
                     AIJob.status == AIJobStatus.RUNNING.value,
                     AIJob.lease_expires_at.is_not(None),

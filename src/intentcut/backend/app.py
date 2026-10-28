@@ -10,6 +10,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
+from intentcut.backend.ai_job_routes import (
+    PRIVATE_HEADERS,
+    AIJobLocalAccessMiddleware,
+    create_ai_job_router,
+)
+from intentcut.backend.ai_job_service import AIJobAPIError, AIJobService
 from intentcut.backend.api_schemas import ErrorResponse
 from intentcut.backend.backend_settings import BackendSettings
 from intentcut.backend.database import Database, MediaNotFound, ProjectNotFound
@@ -64,8 +70,16 @@ def create_app(
     app.add_middleware(
         UploadLimitsMiddleware, max_body_bytes=settings.max_request_bytes
     )
+    app.add_middleware(
+        AIJobLocalAccessMiddleware, enabled=settings.ai_jobs_local_enabled
+    )
     app.include_router(create_project_router(database))
     app.include_router(create_media_router(database, service, settings))
+    app.include_router(create_ai_job_router(AIJobService(database, storage, settings)))
+
+    @app.exception_handler(AIJobAPIError)
+    async def ai_job_error(request: Request, exc: AIJobAPIError) -> JSONResponse:
+        return error_response(exc.status, exc.code, exc.message)
 
     @app.exception_handler(IngestionError)
     async def ingestion_error(request: Request, exc: IngestionError) -> JSONResponse:
@@ -123,4 +137,6 @@ def error_response(
     status: int, code: str, message: str, file_index: int | None = None
 ) -> JSONResponse:
     body = ErrorResponse(code=code, message=message, file_index=file_index)
-    return JSONResponse(body.model_dump(exclude_none=True), status_code=status)
+    return JSONResponse(
+        body.model_dump(exclude_none=True), status_code=status, headers=PRIVATE_HEADERS
+    )
