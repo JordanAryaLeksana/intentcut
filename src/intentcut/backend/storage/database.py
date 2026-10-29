@@ -3,9 +3,13 @@ from collections.abc import Sequence
 from datetime import timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import Engine, create_engine, func, select, update
+from sqlalchemy import Engine, create_engine, func, select, true, update
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.sql.elements import ColumnElement
 
+from intentcut.backend.jobs.domain import AIJobStatus
+from intentcut.backend.jobs.progress import STAGES, AIJobProgress, ProgressStage
+from intentcut.backend.shared.persistence_errors import CommitOutcomeUnknown
 from intentcut.backend.storage.database_models import (
     AIJob,
     AIJobArtifact,
@@ -13,9 +17,7 @@ from intentcut.backend.storage.database_models import (
     MediaAsset,
     Project,
 )
-from intentcut.backend.jobs.domain import AIJobStatus
 from intentcut.backend.storage.local_media_storage import LocalMediaStorage
-from intentcut.backend.shared.persistence_errors import CommitOutcomeUnknown
 
 
 class ProjectNotFound(Exception):
@@ -24,6 +26,22 @@ class ProjectNotFound(Exception):
 
 class MediaNotFound(Exception):
     """The asset does not belong to the requested project, or does not exist."""
+
+
+def _supported_pipeline_filter(
+    supported_job_types: tuple[str, ...] | None,
+) -> ColumnElement[bool]:
+    if supported_job_types is None:
+        # Preserve the repository's generic queue API for existing callers.
+        return true()
+    if not isinstance(supported_job_types, tuple) or any(
+        not isinstance(value, str)
+        or re.fullmatch(r"[a-z][a-z0-9_]{0,63}", value) is None
+        for value in supported_job_types
+    ):
+        raise ValueError("Invalid supported job types")
+    # An empty capability set matches nothing, never all jobs.
+    return AIJob.request_payload["pipeline_version"].astext.in_(supported_job_types)
 
 
 class Database:
@@ -158,18 +176,30 @@ class Database:
             )
 
     def claim_next_ai_job(
-        self, *, lease_seconds: int = 120, job_id: UUID | None = None
+        self,
+        *,
+        lease_seconds: int = 120,
+        job_id: UUID | None = None,
+        manual_only: bool = False,
+        supported_job_types: tuple[str, ...] | None = None,
     ) -> AIJob | None:
         """Atomically claim the oldest available queued job."""
         if type(lease_seconds) is not int or not 1 <= lease_seconds <= 3600:
             raise ValueError("Invalid lease duration")
         if job_id is not None and not isinstance(job_id, UUID):
             raise ValueError("Invalid job ID")
+        pipeline_filter = _supported_pipeline_filter(supported_job_types)
         with self._sessions.begin() as session:
             job = session.scalar(
                 select(AIJob)
+                .where(pipeline_filter)
                 .where(AIJob.status == AIJobStatus.QUEUED.value)
                 .where(AIJob.id == job_id if job_id is not None else True)
+                .where(
+                    AIJob.request_payload["pipeline_version"].astext == "manual_v1"
+                    if manual_only
+                    else True
+                )
                 .order_by(AIJob.created_at, AIJob.id)
                 .limit(1)
                 .with_for_update(skip_locked=True)
@@ -184,18 +214,97 @@ class Database:
             job.attempt_count = (job.attempt_count or 0) + 1
             job.started_at = now
             job.updated_at = now
+            job.progress = None
 
             session.flush()
 
         return job
+
+    def update_ai_job_progress(
+        self,
+        project_id: UUID,
+        job_id: UUID,
+        lease_token: UUID,
+        stage: ProgressStage,
+        *,
+        completed_windows: int | None = None,
+        total_windows: int | None = None,
+    ) -> bool:
+        """Persist a safe snapshot under a short, fenced row lock.
+
+        The lock serializes progress with heartbeat, recovery and completion.
+        Inference and FFmpeg work happen entirely outside this transaction.
+        """
+        if not isinstance(lease_token, UUID):
+            raise ValueError("Invalid lease token")
+        with self._sessions.begin() as session:
+            job = session.scalar(
+                select(AIJob)
+                .where(AIJob.id == job_id, AIJob.project_id == project_id)
+                .with_for_update()
+            )
+            now = session.scalar(select(func.clock_timestamp()))
+            if (
+                job is None
+                or job.status != AIJobStatus.RUNNING.value
+                or job.lease_token != lease_token
+                or job.lease_expires_at is None
+                or job.lease_expires_at <= now
+            ):
+                return False
+            previous = (
+                AIJobProgress.model_validate(job.progress) if job.progress else None
+            )
+            progress = AIJobProgress(
+                stage=stage,
+                stage_started_at=(
+                    previous.stage_started_at
+                    if previous and previous.stage == stage
+                    else now
+                ),
+                updated_at=now,
+                completed_windows=completed_windows,
+                total_windows=total_windows,
+            )
+            if previous and (
+                STAGES.index(progress.stage) < STAGES.index(previous.stage)
+                or (
+                    previous.stage == stage
+                    and previous.total_windows is not None
+                    and (
+                        total_windows != previous.total_windows
+                        or completed_windows is None
+                        or completed_windows < previous.completed_windows
+                    )
+                )
+            ):
+                raise ValueError("Progress cannot move backwards")
+            # Recheck wall-clock expiry after lock acquisition and validation.
+            updated_id = session.scalar(
+                update(AIJob)
+                .where(
+                    AIJob.id == job_id,
+                    AIJob.project_id == project_id,
+                    AIJob.status == AIJobStatus.RUNNING.value,
+                    AIJob.lease_token == lease_token,
+                    AIJob.lease_expires_at > func.clock_timestamp(),
+                )
+                .values(
+                    progress=progress.model_dump(mode="json", exclude_none=True),
+                    updated_at=func.clock_timestamp(),
+                )
+                .returning(AIJob.id)
+            )
+            return updated_id is not None
+
     def complete_ai_job(
-            self,
-            project_id: UUID,
-            job_id : UUID,
-            lease_token: UUID,
+        self,
+        project_id: UUID,
+        job_id: UUID,
+        lease_token: UUID,
     ) -> bool:
 
-        if not isinstance(lease_token , UUID):
+        if not isinstance(lease_token, UUID):
             raise ValueError("Invalid lease token")
         with self._sessions.begin() as session:
             updated_id = session.scalar(
@@ -205,10 +314,11 @@ class Database:
                     AIJob.project_id == project_id,
                     AIJob.status == AIJobStatus.RUNNING.value,
                     AIJob.lease_token == lease_token,
-                    AIJob.lease_expires_at > func.clock_timestamp()
+                    AIJob.lease_expires_at > func.clock_timestamp(),
                 )
                 .values(
                     status=AIJobStatus.SUCCEEDED.value,
+                    progress=None,
                     error_code=None,
                     lease_token=None,
                     lease_expires_at=None,
@@ -226,18 +336,61 @@ class Database:
         lease_token: UUID,
         artifacts: Sequence[AIJobArtifact],
     ) -> bool:
-        """Register both final files and fence success in one short transaction.
-
-        False and pre-COMMIT exceptions mean no changes committed. Once COMMIT
-        is attempted, any exception is uncertain: callers must retain files.
-        """
-        if not isinstance(lease_token, UUID):
-            raise ValueError("Invalid lease token")
+        """Legacy completion always requires the video/storyboard pair."""
         if len(artifacts) != 2 or {a.kind for a in artifacts} != {
             "video",
             "storyboard",
         }:
             raise ValueError("Both final artifact kinds are required")
+        return self._complete_artifacts(
+            project_id, job_id, lease_token, artifacts, derived=False
+        )
+
+    def complete_derived_artifact(
+        self,
+        project_id: UUID,
+        job_id: UUID,
+        lease_token: UUID,
+        artifact: AIJobArtifact,
+    ) -> bool:
+        """Exactly one typed derived output, never a synthetic storyboard."""
+        from intentcut.backend.artifacts.derived import CONTENT_TYPES, DERIVED_PIPELINES
+
+        if (
+            artifact.kind not in DERIVED_PIPELINES.values()
+            or artifact.content_type not in CONTENT_TYPES[artifact.kind]
+        ):
+            raise ValueError("Unsupported derived artifact contract")
+        return self._complete_artifacts(
+            project_id, job_id, lease_token, [artifact], derived=True
+        )
+
+    def get_project_artifact(
+        self, project_id: UUID, artifact_id: UUID
+    ) -> AIJobArtifact | None:
+        with self._sessions() as session:
+            return session.scalar(
+                select(AIJobArtifact)
+                .join(AIJob)
+                .where(
+                    AIJobArtifact.id == artifact_id,
+                    AIJob.project_id == project_id,
+                    AIJob.status == AIJobStatus.SUCCEEDED.value,
+                )
+            )
+
+    def _complete_artifacts(
+        self,
+        project_id: UUID,
+        job_id: UUID,
+        lease_token: UUID,
+        artifacts: Sequence[AIJobArtifact],
+        *,
+        derived: bool,
+    ) -> bool:
+        """Atomic INSERT + fenced success; retain files after an uncertain COMMIT."""
+        if not isinstance(lease_token, UUID):
+            raise ValueError("Invalid lease token")
         for artifact in artifacts:
             if (
                 not isinstance(artifact.id, UUID)
@@ -265,6 +418,54 @@ class Database:
                     or job.lease_expires_at <= now
                 ):
                     return False
+                from intentcut.backend.artifacts.derived import DERIVED_PIPELINES
+
+                pipeline = job.request_payload.get("pipeline_version")
+                if derived:
+                    artifact = artifacts[0]
+                    if DERIVED_PIPELINES.get(pipeline) != artifact.kind:
+                        raise ValueError("Job and output type do not match")
+                    expected_parent = job.request_payload.get("parent_artifact_id")
+                    expected_hash = job.request_payload.get("parent_sha256")
+                    if (
+                        expected_parent
+                        != (
+                            str(artifact.parent_artifact_id)
+                            if artifact.parent_artifact_id
+                            else None
+                        )
+                        or expected_hash != artifact.parent_sha256
+                    ):
+                        raise ValueError("Job and parent identity do not match")
+                    if artifact.parent_artifact_id is None:
+                        if (
+                            artifact.kind != "image"
+                            or artifact.parent_sha256 is not None
+                        ):
+                            raise ValueError("Required parent is missing")
+                    else:
+                        parent = session.scalar(
+                            select(AIJobArtifact)
+                            .join(AIJob)
+                            .where(
+                                AIJobArtifact.id == artifact.parent_artifact_id,
+                                AIJob.project_id == project_id,
+                                AIJob.status == AIJobStatus.SUCCEEDED.value,
+                            )
+                        )
+                        allowed = (
+                            {"video", "rendition", "image"}
+                            if artifact.kind == "image"
+                            else {"video", "rendition"}
+                        )
+                        if (
+                            parent is None
+                            or parent.sha256 != artifact.parent_sha256
+                            or parent.kind not in allowed
+                        ):
+                            raise ValueError("Invalid parent reference")
+                elif pipeline in DERIVED_PIPELINES:
+                    raise ValueError("Derived jobs cannot publish legacy outputs")
                 # Always INSERT. Never attach caller-owned ORM instances, which
                 # could otherwise UPDATE an existing artifact after detachment.
                 session.add_all(
@@ -276,6 +477,9 @@ class Database:
                             storage_key=a.storage_key,
                             size_bytes=a.size_bytes,
                             sha256=a.sha256,
+                            content_type=a.content_type,
+                            parent_artifact_id=a.parent_artifact_id,
+                            parent_sha256=a.parent_sha256,
                         )
                         for a in artifacts
                     ]
@@ -292,6 +496,7 @@ class Database:
                     )
                     .values(
                         status=AIJobStatus.SUCCEEDED.value,
+                        progress=None,
                         error_code=None,
                         lease_token=None,
                         lease_expires_at=None,
@@ -352,6 +557,7 @@ class Database:
                 )
                 .values(
                     status=AIJobStatus.FAILED.value,
+                    progress=None,
                     error_code=error_code,
                     lease_token=None,
                     lease_expires_at=None,
@@ -408,26 +614,31 @@ class Database:
         *,
         max_attempts: int = 1,
         job_id: UUID | None = None,
+        manual_only: bool = False,
+        supported_job_types: tuple[str, ...] | None = None,
     ) -> AIJob | None:
         """Recover one expired job using a bounded retry policy."""
 
-        if (
-            type(max_attempts) is not int
-            or not 1 <= max_attempts <= 3
-        ):
+        if type(max_attempts) is not int or not 1 <= max_attempts <= 3:
             raise ValueError("Invalid maximum attempts")
         if job_id is not None and not isinstance(job_id, UUID):
             raise ValueError("Invalid job ID")
 
+        pipeline_filter = _supported_pipeline_filter(supported_job_types)
         with self._sessions.begin() as session:
             job = session.scalar(
                 select(AIJob)
+                .where(pipeline_filter)
                 .where(AIJob.id == job_id if job_id is not None else True)
+                .where(
+                    AIJob.request_payload["pipeline_version"].astext == "manual_v1"
+                    if manual_only
+                    else True
+                )
                 .where(
                     AIJob.status == AIJobStatus.RUNNING.value,
                     AIJob.lease_expires_at.is_not(None),
-                    AIJob.lease_expires_at
-                    <= func.clock_timestamp(),
+                    AIJob.lease_expires_at <= func.clock_timestamp(),
                 )
                 .order_by(
                     AIJob.lease_expires_at,
@@ -440,14 +651,13 @@ class Database:
             if job is None:
                 return None
 
-            now = session.scalar(
-                select(func.clock_timestamp())
-            )
+            now = session.scalar(select(func.clock_timestamp()))
 
             # Revoke previous worker ownership.
             job.lease_token = None
             job.lease_expires_at = None
             job.updated_at = now
+            job.progress = None
 
             if job.attempt_count >= max_attempts:
                 # No additional attempts are permitted.
@@ -464,7 +674,6 @@ class Database:
             session.flush()
 
         return job
-
 
 
 def main() -> int:

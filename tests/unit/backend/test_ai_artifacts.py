@@ -8,8 +8,8 @@ import pytest
 
 from intentcut.backend.ai_artifacts import AIArtifactPublisher
 from intentcut.backend.ai_processing_adapter import ProcessingResult
-from intentcut.backend.database.database import CommitOutcomeUnknown
-from intentcut.backend.database.local_media_storage import LocalMediaStorage
+from intentcut.backend.storage.database import CommitOutcomeUnknown
+from intentcut.backend.storage.local_media_storage import LocalMediaStorage
 from intentcut.media.models import MediaError
 
 

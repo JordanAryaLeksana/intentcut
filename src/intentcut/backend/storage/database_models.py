@@ -15,10 +15,11 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    and_,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, column_property, mapped_column
 
 from intentcut.backend.jobs.domain import AIJobStatus
 
@@ -97,6 +98,10 @@ class AIJob(Base):
             "jsonb_typeof(request_payload) = 'object'",
             name="ai_job_payload_object",
         ),
+        CheckConstraint(
+            "progress IS NULL OR jsonb_typeof(progress) = 'object'",
+            name="ai_job_progress_object",
+        ),
         Index(
             "ix_ai_jobs_status_created",
             "status",
@@ -167,7 +172,7 @@ class AIJob(Base):
         nullable=True,
     )
 
-    lease_expires_at : Mapped[DateTime | None]= mapped_column(
+    lease_expires_at: Mapped[DateTime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
@@ -179,12 +184,45 @@ class AIJob(Base):
         server_default="0",
     )
 
+    progress: Mapped[dict | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
+    # Evaluated by PostgreSQL on each read, not persisted or exposed by the API.
+    # An expired worker must not look active while waiting for recovery.
+    has_active_lease: Mapped[bool] = column_property(
+        and_(
+            status == AIJobStatus.RUNNING.value,
+            lease_token.is_not(None),
+            lease_expires_at > func.clock_timestamp(),
+        )
+    )
+
 
 class AIJobArtifact(Base):
     __tablename__ = "ai_job_artifacts"
     __table_args__ = (
         UniqueConstraint("job_id", "kind", name="uq_ai_job_artifact_kind"),
-        CheckConstraint("kind IN ('video', 'storyboard')", name="artifact_kind"),
+        CheckConstraint(
+            "kind IN ('video', 'storyboard', 'captions', 'image', 'rendition')",
+            name="artifact_kind",
+        ),
+        CheckConstraint(
+            "(parent_artifact_id IS NULL AND parent_sha256 IS NULL) OR "
+            "(parent_artifact_id IS NOT NULL AND parent_sha256 IS NOT NULL "
+            "AND parent_sha256 ~ '^[0-9a-f]{64}$')",
+            name="artifact_parent_pair",
+        ),
+        CheckConstraint(
+            "COALESCE((kind IN ('video','storyboard') AND content_type IS NULL "
+            "AND parent_artifact_id IS NULL) OR "
+            "(kind = 'captions' AND content_type = 'application/json' "
+            "AND parent_artifact_id IS NOT NULL) OR "
+            "(kind = 'image' AND content_type IN ('image/png','image/jpeg')) OR "
+            "(kind = 'rendition' AND content_type = 'video/mp4' "
+            "AND parent_artifact_id IS NOT NULL), false)",
+            name="artifact_content_type",
+        ),
         CheckConstraint("size_bytes > 0", name="artifact_size"),
         CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="artifact_sha256"),
         CheckConstraint(
@@ -199,6 +237,70 @@ class AIJobArtifact(Base):
     storage_key: Mapped[str] = mapped_column(Text, unique=True)
     size_bytes: Mapped[int] = mapped_column(BigInteger)
     sha256: Mapped[str] = mapped_column(String(64))
+    content_type: Mapped[str | None] = mapped_column(String(32))
+    parent_artifact_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey(
+            "ai_job_artifacts.id", ondelete="RESTRICT", name="artifact_parent_fk"
+        )
+    )
+    parent_sha256: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class EditDraft(Base):
+    """One mutable head; submitted job payloads retain immutable render revisions."""
+
+    __tablename__ = "edit_drafts"
+    __table_args__ = (
+        CheckConstraint("revision > 0", name="edit_draft_revision"),
+        CheckConstraint(
+            "jsonb_typeof(window_indices) = 'array'", name="edit_draft_cuts"
+        ),
+    )
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), primary_key=True
+    )
+    base_job_id: Mapped[UUID] = mapped_column(
+        ForeignKey("ai_jobs.id", ondelete="RESTRICT")
+    )
+    base_artifact_id: Mapped[UUID] = mapped_column(
+        ForeignKey("ai_job_artifacts.id", ondelete="RESTRICT")
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    window_indices: Mapped[list[int]] = mapped_column(JSONB, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+Index(
+    "uq_manual_render_revision",
+    AIJob.project_id,
+    AIJob.request_payload["draft_revision"].astext,
+    unique=True,
+    postgresql_where=AIJob.request_payload["pipeline_version"].astext == "manual_v1",
+)
+
+
+class RevisionProposal(Base):
+    __tablename__ = "revision_proposals"
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('pending', 'accepted', 'rejected', 'stale')",
+            name="revision_proposal_state",
+        ),
+        CheckConstraint(
+            "result IS NULL OR jsonb_typeof(result) = 'object'",
+            name="revision_proposal_result",
+        ),
+    )
+    job_id: Mapped[UUID] = mapped_column(
+        ForeignKey("ai_jobs.id", ondelete="RESTRICT"), primary_key=True
+    )
+    state: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="pending"
+    )
+    result: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    applied_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)

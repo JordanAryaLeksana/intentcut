@@ -18,7 +18,13 @@ class BackendSettings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=list)
     media_root: Path = Path(".local/media")
     ai_jobs_local_enabled: bool = False
+    ai_jobs_local_enabled: bool = False
+    ai_jobs_browser_enabled: bool = False
     ai_processing_enabled: bool = False
+    voice_transcription_enabled: bool = False
+    voice_max_duration_seconds: int = Field(default=120, ge=1, le=600)
+    voice_max_jobs_per_project: int = Field(default=3, ge=1, le=20)
+    voice_timeout_seconds: float = Field(default=180, ge=1, le=600)
     model_api_key: SecretStr | None = None
     ai_max_media: int = Field(default=4, ge=1, le=10)
     ai_max_windows: int = Field(default=12, ge=1, le=12)

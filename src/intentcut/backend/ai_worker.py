@@ -7,13 +7,29 @@ from uuid import UUID
 
 from intentcut.backend.ai_artifacts import AIArtifactPublisher
 from intentcut.backend.ai_processing_adapter import RealAIProcessingAdapter
-from intentcut.backend.contracts import AIProcessingError, ProcessingResult
+from intentcut.backend.artifacts.derived import (
+    DERIVED_RESULT_TYPES,
+    CaptionArtifactResult,
+    DerivedResult,
+)
+from intentcut.backend.contracts import (
+    AIProcessingError,
+    JobLeaseLost,
+    ProcessingResult,
+    ProposalResult,
+)
+from intentcut.backend.editing.processor import ManualRenderProcessor
+from intentcut.backend.editing.revisions import RevisionProcessor
+from intentcut.backend.jobs.dispatch import JobDispatcher, JobRegistration, JobType
 from intentcut.backend.storage.database import CommitOutcomeUnknown, Database
 from intentcut.backend.storage.database_models import AIJob
+from intentcut.backend.transcription.processor import TranscriptionProcessor
 
 logger = logging.getLogger(__name__)
 
-JobProcessor = Callable[[AIJob], ProcessingResult | None]
+JobProcessor = Callable[
+    [AIJob], ProcessingResult | ProposalResult | DerivedResult | None
+]
 
 
 class AIJobWorker:
@@ -35,6 +51,37 @@ class AIJobWorker:
             artifact_publisher is None or allow_artifact_free_processor
         ):
             raise ValueError("Real processing requires artifact publication")
+        # Preserve direct adapter construction used by existing callers, while
+        # giving those production adapters the same capability fence as the CLI.
+        if isinstance(processor, RealAIProcessingAdapter):
+            processor = JobDispatcher(
+                [
+                    JobRegistration(
+                        JobType.UPLOADED_FIRST_CUT, processor, ProcessingResult
+                    )
+                ]
+            )
+        elif isinstance(processor, ManualRenderProcessor):
+            processor = JobDispatcher(
+                [JobRegistration(JobType.MANUAL_RENDER, processor, ProcessingResult)]
+            )
+        elif isinstance(processor, RevisionProcessor):
+            processor = JobDispatcher(
+                [JobRegistration(JobType.SEQUENCE_REVISION, processor, ProposalResult)]
+            )
+        elif isinstance(processor, TranscriptionProcessor):
+            processor = JobDispatcher(
+                [
+                    JobRegistration(
+                        JobType.CAPTION_TRANSCRIBE, processor, CaptionArtifactResult
+                    )
+                ]
+            )
+        if isinstance(processor, JobDispatcher) and (
+            allow_artifact_free_processor
+            or (processor.requires_artifact_publisher and artifact_publisher is None)
+        ):
+            raise ValueError("Registered processing requires artifact publication")
         self._database = database
         self._processor = processor
         self._publisher = artifact_publisher
@@ -44,11 +91,27 @@ class AIJobWorker:
         self._lease_seconds = lease_seconds
         self._heartbeat_interval = heartbeat_interval_seconds
 
-    def process_one(self, *, job_id: UUID | None = None) -> bool:
+    @property
+    def supported_job_types(self) -> tuple[str, ...] | None:
+        if isinstance(self._processor, JobDispatcher):
+            return self._processor.supported_job_types
+        # Compatibility for injected synthetic processors; production CLI and
+        # known production adapters always use the registry above.
+        return None
+
+    def process_one(
+        self, *, job_id: UUID | None = None, manual_only: bool = False
+    ) -> bool:
         """Claim, execute, publish, and finalize at most one job."""
         job = self._database.claim_next_ai_job(
             lease_seconds=self._lease_seconds,
             **({"job_id": job_id} if job_id is not None else {}),
+            **({"manual_only": True} if manual_only else {}),
+            **(
+                {"supported_job_types": self.supported_job_types}
+                if self.supported_job_types is not None
+                else {}
+            ),
         )
         if job is None:
             return False
@@ -87,9 +150,17 @@ class AIJobWorker:
                 result = self._processor(job)
                 if ownership_lost.is_set():
                     return True  # Recovery handles the expired lease.
-                if isinstance(result, ProcessingResult):
+                if isinstance(result, ProposalResult):
+                    from intentcut.backend.editing.revisions import complete_proposal
+
+                    completed = complete_proposal(self._database, job, result)
+                elif isinstance(result, (ProcessingResult, *DERIVED_RESULT_TYPES)):
                     if self._publisher is None:
                         raise RuntimeError("Artifact publisher is required")
+                    if not self._database.update_ai_job_progress(
+                        job.project_id, job.id, token, "publishing_artifacts"
+                    ):
+                        raise JobLeaseLost("Artifact stage rejected by lease")
                     completed = self._publisher.publish_and_complete(
                         self._database,
                         job.project_id,
@@ -106,6 +177,9 @@ class AIJobWorker:
                     raise TypeError("Processor must return required artifacts")
                 if not completed:
                     logger.warning("AI job completion rejected by lease: %s", job.id)
+            except JobLeaseLost:
+                ownership_lost.set()
+                logger.warning("AI job ownership lost: %s", job.id)
             except CommitOutcomeUnknown:
                 # Do not fail or delete: COMMIT may already have succeeded.
                 # Files remain for reconciliation; recovery handles a rolled-back job.
@@ -122,7 +196,8 @@ class AIJobWorker:
                         job_id=job.id,
                         lease_token=token,
                         error_code=(
-                            exc.code if isinstance(exc, AIProcessingError)
+                            exc.code
+                            if isinstance(exc, AIProcessingError)
                             else "processing_failed"
                         ),
                     )

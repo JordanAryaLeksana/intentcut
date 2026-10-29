@@ -1,9 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Next.js performance features
   cacheComponents: true,
   partialPrefetching: true,
+
+  // Allow local development hosts
+  allowedDevOrigins: [
+    "127.0.0.1",
+    "localhost",
+  ],
+
   turbopack: {
     rules: {
       "*.css": {

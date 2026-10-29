@@ -7,18 +7,25 @@ from tempfile import SpooledTemporaryFile
 from typing import BinaryIO
 from uuid import UUID
 
+from intentcut.backend.artifacts.derived import (
+    CAPTION_LIMIT,
+    CONTENT_TYPES,
+    IMAGE_LIMIT,
+    image_content_type,
+    validate_caption,
+)
 from intentcut.backend.artifacts.schemas import PublicStoryboard
 from intentcut.backend.contracts import AIProcessingError
-from intentcut.backend.storage.database import Database
-from intentcut.backend.storage.database_models import AIJob, AIJobArtifact
 from intentcut.backend.first_cut.contracts import FirstCutRequest
 from intentcut.backend.first_cut.media_inputs import (
     fingerprint_source,
     plan_inputs,
     processing_available,
 )
-from intentcut.backend.storage.local_media_storage import LocalMediaStorage
 from intentcut.backend.shared.settings import BackendSettings
+from intentcut.backend.storage.database import Database
+from intentcut.backend.storage.database_models import AIJob, AIJobArtifact
+from intentcut.backend.storage.local_media_storage import LocalMediaStorage
 
 
 class AIJobAPIError(Exception):
@@ -101,8 +108,17 @@ class AIJobService:
             limit = self.storage.max_file_bytes
             if artifact.kind == "storyboard":
                 limit = min(limit, 8 * 1024 * 1024)
-            if artifact.kind not in {"video", "storyboard"} or not (
-                0 < artifact.size_bytes <= limit
+            if artifact.kind == "captions":
+                limit = min(limit, CAPTION_LIMIT)
+            elif artifact.kind == "image":
+                limit = min(limit, IMAGE_LIMIT)
+            if (
+                artifact.kind not in CONTENT_TYPES
+                or (
+                    artifact.kind not in {"video", "storyboard"}
+                    and artifact.content_type not in CONTENT_TYPES[artifact.kind]
+                )
+                or not (0 < artifact.size_bytes <= limit)
             ):
                 raise ValueError("Invalid artifact metadata")
             digest = hashlib.sha256()
@@ -130,8 +146,14 @@ class AIJobService:
                 snapshot.write(
                     public.model_dump_json(exclude_none=True).encode("utf-8")
                 )
-            elif snapshot.read(8)[4:8] != b"ftyp":
-                raise ValueError("Invalid MP4 header")
+            elif artifact.kind == "captions":
+                validate_caption(snapshot.read(CAPTION_LIMIT + 1))
+            elif artifact.kind == "image":
+                if image_content_type(snapshot.read(16)) != artifact.content_type:
+                    raise ValueError("Image content type mismatch")
+            elif artifact.kind in {"video", "rendition"}:
+                if snapshot.read(8)[4:8] != b"ftyp":
+                    raise ValueError("Invalid MP4 header")
             snapshot.seek(0)
             return snapshot
         except (OSError, ValueError, RecursionError) as exc:

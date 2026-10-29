@@ -12,7 +12,7 @@ from sqlalchemy import func, select, update
 from intentcut.backend.ai_artifacts import AIArtifactPublisher
 from intentcut.backend.ai_worker import AIJobWorker
 from intentcut.backend.app import create_app
-from intentcut.backend.database.database_models import AIJob, AIJobArtifact
+from intentcut.backend.storage.database_models import AIJob, AIJobArtifact
 
 pytestmark = [pytest.mark.integration, pytest.mark.postgres]
 
@@ -104,6 +104,7 @@ def test_status_allowlist(ai_client, database, storage, processing_result, job, 
         "finished_at",
         "attempt_count",
         "error_code",
+        "progress",
     }
     assert body["status"] == state
     assert body["attempt_count"] == (0 if state == "queued" else 1)

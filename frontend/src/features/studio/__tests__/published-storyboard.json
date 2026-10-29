@@ -1,0 +1,47 @@
+{
+  "target_seconds": 30.0,
+  "total_seconds": 18.823334,
+  "render_seconds": 18.833333333333336,
+  "cuts": [
+    {
+      "media_id": "1132f4f2-8437-4aad-83d5-5d084e283c7a",
+      "window_index": 2,
+      "source_window_index": 2,
+      "playback_order": 0,
+      "start_seconds": 10.0,
+      "end_seconds": 13.736667
+    },
+    {
+      "media_id": "74ba6cdb-a3e5-4e7a-a147-860fcfed31b7",
+      "window_index": 6,
+      "source_window_index": 0,
+      "playback_order": 1,
+      "start_seconds": 0.0,
+      "end_seconds": 5.0
+    },
+    {
+      "media_id": "5d9c9888-4a49-4492-92d1-2bf575aa5eee",
+      "window_index": 4,
+      "source_window_index": 1,
+      "playback_order": 2,
+      "start_seconds": 5.0,
+      "end_seconds": 10.0
+    },
+    {
+      "media_id": "74ba6cdb-a3e5-4e7a-a147-860fcfed31b7",
+      "window_index": 8,
+      "source_window_index": 2,
+      "playback_order": 3,
+      "start_seconds": 10.0,
+      "end_seconds": 11.05
+    },
+    {
+      "media_id": "5d9c9888-4a49-4492-92d1-2bf575aa5eee",
+      "window_index": 5,
+      "source_window_index": 2,
+      "playback_order": 4,
+      "start_seconds": 10.0,
+      "end_seconds": 14.036667
+    }
+  ]
+}

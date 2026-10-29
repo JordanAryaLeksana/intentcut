@@ -15,7 +15,7 @@ from intentcut.backend.ai_artifacts import AIArtifactPublisher
 from intentcut.backend.ai_processing_adapter import RealAIProcessingAdapter
 from intentcut.backend.ai_worker import AIJobWorker
 from intentcut.backend.app import create_app
-from intentcut.backend.database.database_models import AIJob
+from intentcut.backend.storage.database_models import AIJob
 from intentcut.media.probe_parser import MediaProbe
 from intentcut.media.render import OutputValidator
 
@@ -379,7 +379,7 @@ def test_worker_entry_point_uses_real_pipeline_without_paid_calls(
 
 
 def test_long_video_budget_before_provider_calls(api, uploaded, database):
-    from intentcut.backend.database.database_models import MediaAsset
+    from intentcut.backend.storage.database_models import MediaAsset
 
     project, media = uploaded
     with database.engine.begin() as connection:
@@ -459,3 +459,173 @@ def test_manual_smoke_orchestration_with_fake_muse(
     assert "PASS:" in output and "fully decoded" in output
     assert "fake-provider-test-only" not in output
     assert len(list((tmp_path / ".local" / "smoke").glob("*/video.mp4"))) == 1
+
+
+def observe_progress(database, monkeypatch):
+    updates = []
+    original = database.update_ai_job_progress
+
+    def observed(*args, **kwargs):
+        accepted = original(*args, **kwargs)
+        if accepted:
+            current = database.get_ai_job(args[0], args[1])
+            updates.append((current.attempt_count, dict(current.progress)))
+        return accepted
+
+    monkeypatch.setattr(database, "update_ai_job_progress", observed)
+    return updates
+
+
+def test_real_pipeline_reports_actual_boundaries(
+    api, uploaded, database, storage, processing_settings, fake_muse, monkeypatch
+):
+    from intentcut.media.render import VerticalVideoRenderer
+
+    updates = observe_progress(database, monkeypatch)
+    accepted = submit(api, uploaded).json()
+    project = UUID(uploaded[0])
+    job_id = UUID(accepted["id"])
+    analyze = fake_muse.analyze
+    select_story = fake_muse.select
+    render = VerticalVideoRenderer.render
+    prepare_artifact = AIArtifactPublisher._prepare
+
+    def active():
+        # A provider must never run while a progress transaction holds a connection.
+        assert database.engine.pool.checkedout() == 0
+        return database.get_ai_job(project, job_id).progress
+
+    def analyze_window(clip):
+        progress = active()
+        assert progress["stage"] == "understanding_footage"
+        assert progress["completed_windows"] == len(fake_muse.analyzed)
+        return analyze(clip)
+
+    def choose_story(*args):
+        assert active()["stage"] == "selecting_story"
+        return select_story(*args)
+
+    def render_video(self, *args):
+        assert active()["stage"] == "rendering_video"
+        return render(self, *args)
+
+    def publish(self, *args):
+        assert active()["stage"] == "publishing_artifacts"
+        return prepare_artifact(self, *args)
+
+    monkeypatch.setattr(fake_muse, "analyze", analyze_window)
+    monkeypatch.setattr(fake_muse, "select", choose_story)
+    monkeypatch.setattr(VerticalVideoRenderer, "render", render_video)
+    monkeypatch.setattr(AIArtifactPublisher, "_prepare", publish)
+    assert worker(database, storage, processing_settings, fake_muse).process_one(
+        job_id=job_id
+    )
+    assert [p["stage"] for _, p in updates] == [
+        "preparing_media",
+        "extracting_windows",
+        "understanding_footage",
+        "understanding_footage",
+        "understanding_footage",
+        "selecting_story",
+        "rendering_video",
+        "publishing_artifacts",
+    ]
+    assert [
+        (p["completed_windows"], p["total_windows"])
+        for _, p in updates
+        if "completed_windows" in p
+    ] == [(0, 2), (1, 2), (2, 2)]
+    body = api.get(accepted["status_url"]).json()
+    assert body["status"] == "succeeded" and body["progress"] is None
+
+
+def test_retry_counts_cached_and_new_evidence_only_after_validation(
+    api, uploaded, database, storage, processing_settings, fake_muse, monkeypatch
+):
+    updates = observe_progress(database, monkeypatch)
+    accepted = submit(api, uploaded).json()
+    job_id = UUID(accepted["id"])
+    project = UUID(uploaded[0])
+    analyze = fake_muse.analyze
+    calls = 0
+
+    def lose_lease_on_second_window(clip):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            with database.engine.begin() as connection:
+                connection.execute(
+                    update(AIJob)
+                    .where(AIJob.id == job_id)
+                    .values(
+                        lease_expires_at=func.clock_timestamp() - timedelta(seconds=1)
+                    )
+                )
+            raise RuntimeError("test-only provider failure after lease expiry")
+        return analyze(clip)
+
+    monkeypatch.setattr(fake_muse, "analyze", lose_lease_on_second_window)
+    assert worker(database, storage, processing_settings, fake_muse).process_one(
+        job_id=job_id
+    )
+    first = database.get_ai_job(project, job_id)
+    assert first.status == "running" and first.progress["completed_windows"] == 1
+    assert api.get(accepted["status_url"]).json()["progress"] is None
+    recovered = database.recover_expired_ai_job(job_id=job_id, max_attempts=2)
+    assert recovered.status == "queued" and recovered.progress is None
+    assert worker(database, storage, processing_settings, fake_muse).process_one(
+        job_id=job_id
+    )
+    assert (
+        calls == 3
+    )  # first valid, interrupted second, new second; first reused cache.
+    for attempt, expected in [(1, [0, 1]), (2, [0, 1, 2])]:
+        assert [
+            p["completed_windows"]
+            for a, p in updates
+            if a == attempt and p["stage"] == "understanding_footage"
+        ] == expected
+    assert api.get(accepted["status_url"]).json()["status"] == "succeeded"
+
+
+@pytest.mark.parametrize("fault", ["understanding_footage", "rendering_video"])
+def test_failure_never_reports_later_stages(
+    api, uploaded, database, storage, processing_settings, fake_muse, monkeypatch, fault
+):
+    from intentcut.media.render import VerticalVideoRenderer
+
+    updates = observe_progress(database, monkeypatch)
+    accepted = submit(api, uploaded).json()
+    if fault == "understanding_footage":
+        analyze = fake_muse.analyze
+
+        def invalid_second(clip):
+            if fake_muse.analyzed:
+                # Bypassed model validation must still be caught by understanding.
+                from intentcut.ai.schemas import VideoUnderstandingResult
+
+                return VideoUnderstandingResult.model_construct(
+                    summary="", scene_candidates=[]
+                )
+            return analyze(clip)
+
+        monkeypatch.setattr(fake_muse, "analyze", invalid_second)
+    else:
+
+        def render_failure(*args):
+            raise RuntimeError("private-ffmpeg-diagnostics")
+
+        monkeypatch.setattr(VerticalVideoRenderer, "render", render_failure)
+    assert worker(database, storage, processing_settings, fake_muse).process_one(
+        job_id=UUID(accepted["id"])
+    )
+    stages = [p["stage"] for _, p in updates]
+    assert stages[-1] == fault
+    assert "publishing_artifacts" not in stages
+    if fault == "understanding_footage":
+        assert updates[-1][1]["completed_windows"] == 1
+        assert "selecting_story" not in stages and "rendering_video" not in stages
+    response = api.get(accepted["status_url"])
+    assert response.json()["status"] == "failed"
+    assert response.json()["progress"] is None
+    assert "private-ffmpeg" not in response.text

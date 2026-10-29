@@ -2,6 +2,7 @@
 
 import ipaddress
 import re
+from urllib.parse import urlsplit
 
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse
@@ -22,13 +23,22 @@ class AIJobLocalAccessMiddleware:
     Run on loopback with proxy headers disabled and never behind a public proxy.
     """
 
-    def __init__(self, app: ASGIApp, enabled: bool) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        enabled: bool,
+        browser_enabled: bool = False,
+        browser_origins: list[str] | None = None,
+    ) -> None:
         self.app = app
         self.enabled = enabled
+        self.browser_enabled = browser_enabled
+        self.browser_origins = frozenset(browser_origins or [])
+
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or not re.match(
-            r"^/projects/[^/]+/ai-jobs(?:/|$)", scope["path"]
+            r"^/projects/[^/]+/(?:ai-jobs|edit-draft)(?:/|$)", scope["path"]
         ):
             await self.app(scope, receive, send)
             return
@@ -59,27 +69,68 @@ class AIJobLocalAccessMiddleware:
         )
         await response(scope, receive, private_send)
 
-    @staticmethod
-    def _local_request(scope: Scope) -> bool:
-        client = scope.get("client")
-        try:
-            if not client or not ipaddress.ip_address(client[0]).is_loopback:
+    def _local_request(self, scope: Scope) -> bool:
+            client = scope.get("client")
+
+            try:
+                if not client or not ipaddress.ip_address(client[0]).is_loopback:
+                    return False
+            except (ValueError, TypeError):
                 return False
-        except ValueError:
-            return False
-        headers = Headers(scope=scope)
-        hosts = headers.getlist("host")
-        # Host checks prevent DNS rebinding. Browser and proxy requests are refused.
-        return (
-            len(hosts) == 1
-            and re.fullmatch(
-                r"(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]{1,5})?", hosts[0]
-            )
-            is not None
-            and "origin" not in headers
-            and headers.get("sec-fetch-site", "none") == "none"
-            and not any(
+
+            headers = Headers(scope=scope)
+            hosts = headers.getlist("host")
+
+            if (
+                len(hosts) != 1
+                or re.fullmatch(
+                    r"(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]{1,5})?",
+                    hosts[0],
+                ) is None
+            ):
+                return False
+
+            if any(
                 name in {"forwarded", "via"} or name.startswith("x-forwarded-")
                 for name in headers
+            ):
+                return False
+
+            origins = headers.getlist("origin")
+
+            # Preserve trusted direct local clients.
+            if not origins:
+                return headers.get("sec-fetch-site", "none") == "none"
+
+            # Browser access requires explicit opt-in.
+            if not self.browser_enabled or len(origins) != 1:
+                return False
+
+            origin = origins[0]
+
+            if origin not in self.browser_origins:
+                return False
+
+            try:
+                parsed = urlsplit(origin)
+
+                if (
+                    parsed.scheme != "http"
+                    or parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
+                    or parsed.port is None
+                    or parsed.username is not None
+                    or parsed.password is not None
+                    or parsed.path
+                    or parsed.query
+                    or parsed.fragment
+                ):
+                    return False
+            except ValueError:
+                return False
+
+            return (
+                headers.get("sec-fetch-site")
+                in {"same-origin", "same-site", "cross-site"}
+                and headers.get("sec-fetch-mode") == "cors"
+                and headers.get("sec-fetch-dest", "empty") == "empty"
             )
-        )

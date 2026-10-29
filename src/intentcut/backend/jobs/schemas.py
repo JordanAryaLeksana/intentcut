@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from intentcut.backend.jobs.domain import AIJobStatus
+from intentcut.backend.jobs.progress import AIJobProgress
 
 
 class AIJobResponse(BaseModel):
@@ -18,6 +19,7 @@ class AIJobResponse(BaseModel):
     finished_at: datetime | None
     attempt_count: int
     error_code: str | None
+    progress: AIJobProgress | None = None
 
 
 class AIJobAcceptedResponse(BaseModel):

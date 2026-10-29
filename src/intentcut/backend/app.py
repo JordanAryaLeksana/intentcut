@@ -13,6 +13,10 @@ from starlette.responses import JSONResponse
 
 from intentcut.backend.ai_job_service import AIJobAPIError, AIJobService
 from intentcut.backend.artifacts.routes import create_artifact_router
+from intentcut.backend.editing.revision_routes import create_revision_router
+from intentcut.backend.editing.revisions import RevisionService
+from intentcut.backend.editing.routes import create_editing_router
+from intentcut.backend.editing.service import EditingService
 from intentcut.backend.jobs.routes import create_ai_job_router
 from intentcut.backend.media_ingestion.routes import create_media_router
 from intentcut.backend.media_ingestion.service import (
@@ -29,6 +33,8 @@ from intentcut.backend.shared.settings import BackendSettings
 from intentcut.backend.shared.upload_limits import UploadLimitsMiddleware
 from intentcut.backend.storage.database import Database, MediaNotFound, ProjectNotFound
 from intentcut.backend.storage.local_media_storage import LocalMediaStorage
+from intentcut.backend.transcription.routes import create_transcription_router
+from intentcut.backend.transcription.service import TranscriptionService
 from intentcut.media.probe_parser import MediaProbe
 
 logger = logging.getLogger(__name__)
@@ -70,12 +76,14 @@ def create_app(
 
     app = FastAPI(title="IntentCut Media Ingestion", version="0.2.0", lifespan=lifespan)
     app.add_middleware(
-    UploadLimitsMiddleware,
-         max_body_bytes=settings.max_request_bytes,
+        UploadLimitsMiddleware,
+        max_body_bytes=settings.max_request_bytes,
     )
     app.add_middleware(
         AIJobLocalAccessMiddleware,
         enabled=settings.ai_jobs_local_enabled,
+        browser_enabled=settings.ai_jobs_browser_enabled,
+        browser_origins=settings.cors_origins,
     )
 
     # Browser access from the local Next.js development server.
@@ -83,14 +91,20 @@ def create_app(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PUT"],
         allow_headers=["Content-Type"],
     )
+
     app.include_router(create_project_router(database))
     app.include_router(create_media_router(database, service, settings))
     ai_service = AIJobService(database, storage, settings)
     app.include_router(create_ai_job_router(ai_service))
+    app.include_router(create_transcription_router(TranscriptionService(ai_service)))
     app.include_router(create_artifact_router(ai_service))
+    app.include_router(create_editing_router(EditingService(ai_service)))
+    app.include_router(
+        create_revision_router(RevisionService(EditingService(ai_service)))
+    )
 
     @app.exception_handler(AIJobAPIError)
     async def ai_job_error(request: Request, exc: AIJobAPIError) -> JSONResponse:

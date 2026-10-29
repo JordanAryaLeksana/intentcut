@@ -27,8 +27,10 @@ export function MediaLibrary({ projectId }: { projectId?: string }) {
 
   return (
     <section className="studio-panel studio-library" aria-labelledby="library-heading">
-      <header className="studio-panelHeader"><h2 id="library-heading">Media Library</h2><span className="technical">{state.files.length} local</span></header>
+      <header className="studio-panelHeader"><h2 id="library-heading">Media Pool</h2><span className="technical">{state.files.length} local</span></header>
       <div className="media-library-content">
+        <details className="studio-import" open={projectId ? undefined : true}>
+          <summary>Import footage <span>Local videos</span></summary>
         <div className="media-dropzone" data-dragging={dragging}
           onDragEnter={event => { event.preventDefault(); dragDepth.current += 1; setDragging(true); }}
           onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
@@ -54,6 +56,7 @@ export function MediaLibrary({ projectId }: { projectId?: string }) {
               <button type="button" className="media-remove" disabled={busy} aria-label={`Remove ${file.name}`} onClick={() => { dispatch({ type: "remove", key: fileKey(file) }); chooseButton.current?.focus(); }}>Remove<span className="sr-only"> from local list</span></button>
             </li>
           ))}</ul>}
+        </details>
         {projectId && <PersistedMedia projectId={projectId} files={state.files} onBusy={setBusy} onSaved={files=>dispatch({ type: "saved", files })} />}
         <p id="media-privacy" className="media-privacy">{projectId ? "Selected files stay in this tab until you upload them. Only confirmed saved media survives a reload. Browser File objects are never persisted." : "Only in this tab. Files are not uploaded or saved. Reloading or leaving this page clears the list."}</p>
       </div>

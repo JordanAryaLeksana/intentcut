@@ -43,6 +43,7 @@ def create_ai_job_router(service: AIJobService) -> APIRouter:
             finished_at=job.finished_at,
             attempt_count=job.attempt_count,
             error_code=code,
+            progress=job.progress if job.has_active_lease is True else None,
         )
 
     return router

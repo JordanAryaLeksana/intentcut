@@ -1,5 +1,6 @@
 """Proven M2A Muse transport, shared by scripts and uploaded-media jobs."""
 
+import logging
 import sys
 from pathlib import Path
 from time import perf_counter
@@ -8,6 +9,7 @@ from openai import OpenAI
 
 from intentcut.ai.schemas import VideoUnderstandingResult
 
+logger = logging.getLogger(__name__)
 MODEL = "muse-spark-1.3"
 MAX_CLIP_BYTES = 25 * 1024 * 1024
 
@@ -72,6 +74,21 @@ def analyze_one(
         inference_seconds = perf_counter() - started
 
         if response.status != "completed" or not response.output_text:
+            details = getattr(response, "incomplete_details", None)
+            error = getattr(response, "error", None)
+
+            logger.error(
+                "Muse understanding rejected: "
+                "response_status=%s "
+                "incomplete_reason=%s "
+                "error_code=%s "
+                "has_output=%s",
+                response.status,
+                getattr(details, "reason", None),
+                getattr(error, "code", None),
+                bool(response.output_text),
+            )
+
             raise RuntimeError("Muse returned an incomplete or empty response")
 
         parsed = VideoUnderstandingResult.model_validate_json(response.output_text)
@@ -112,3 +129,8 @@ class MuseClient:
 
         selection, _ = request_story(self.client, evidence, intent, target_seconds)
         return selection
+
+    def revise(self, context: dict, instruction: str):
+        from intentcut.ai.revision import request_revision
+
+        return request_revision(self.client, context, instruction)

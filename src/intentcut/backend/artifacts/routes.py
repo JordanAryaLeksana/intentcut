@@ -9,6 +9,7 @@ from starlette.responses import StreamingResponse
 from starlette.types import Receive, Scope, Send
 
 from intentcut.backend.ai_job_service import AIJobService
+from intentcut.backend.artifacts.derived import CONTENT_TYPES
 from intentcut.backend.artifacts.schemas import (
     AIJobArtifactListResponse,
     AIJobArtifactResponse,
@@ -17,15 +18,34 @@ from intentcut.backend.shared.http_security import PRIVATE_HEADERS
 
 
 class SnapshotResponse(StreamingResponse):
-    def __init__(self, snapshot: BinaryIO, artifact_id: UUID, kind: str) -> None:
+    def __init__(
+        self,
+        snapshot: BinaryIO,
+        artifact_id: UUID,
+        kind: str,
+        content_type: str | None = None,
+    ) -> None:
         self.snapshot = snapshot
         snapshot.seek(0, 2)
         size = snapshot.tell()
         snapshot.seek(0)
-        extension = "mp4" if kind == "video" else "json"
+        if kind not in CONTENT_TYPES:
+            snapshot.close()
+            raise ValueError("Unsupported artifact kind")
+        if content_type is None and kind in {"video", "storyboard"}:
+            content_type = "video/mp4" if kind == "video" else "application/json"
+        if content_type not in CONTENT_TYPES[kind]:
+            snapshot.close()
+            raise ValueError("Invalid artifact content type")
+        extension = {
+            "video/mp4": "mp4",
+            "application/json": "json",
+            "image/png": "png",
+            "image/jpeg": "jpg",
+        }[content_type]
         super().__init__(
             self._chunks(),
-            media_type="video/mp4" if kind == "video" else "application/json",
+            media_type=content_type,
             headers={
                 **PRIVATE_HEADERS,
                 "Content-Length": str(size),
@@ -49,7 +69,11 @@ class SnapshotResponse(StreamingResponse):
 def create_artifact_router(service: AIJobService) -> APIRouter:
     router = APIRouter(prefix="/projects/{project_id}/ai-jobs", tags=["ai-jobs"])
 
-    @router.get("/{job_id}/artifacts", response_model=AIJobArtifactListResponse)
+    @router.get(
+        "/{job_id}/artifacts",
+        response_model=AIJobArtifactListResponse,
+        response_model_exclude_none=True,
+    )
     def list_artifacts(project_id: UUID, job_id: UUID) -> AIJobArtifactListResponse:
         return AIJobArtifactListResponse(
             items=[
@@ -57,6 +81,9 @@ def create_artifact_router(service: AIJobService) -> APIRouter:
                     id=artifact.id,
                     kind=artifact.kind,
                     size_bytes=artifact.size_bytes,
+                    content_type=artifact.content_type,
+                    parent_artifact_id=artifact.parent_artifact_id,
+                    parent_sha256=artifact.parent_sha256,
                     download_url=(
                         f"/projects/{project_id}/ai-jobs/{job_id}/artifacts/{artifact.id}"
                     ),
@@ -68,12 +95,24 @@ def create_artifact_router(service: AIJobService) -> APIRouter:
     @router.get(
         "/{job_id}/artifacts/{artifact_id}",
         response_class=StreamingResponse,
-        responses={200: {"content": {"video/mp4": {}, "application/json": {}}}},
+        responses={
+            200: {
+                "content": {
+                    "video/mp4": {},
+                    "application/json": {},
+                    "image/png": {},
+                    "image/jpeg": {},
+                }
+            }
+        },
     )
     def download(project_id: UUID, job_id: UUID, artifact_id: UUID) -> SnapshotResponse:
         artifact = service.artifact(project_id, job_id, artifact_id)
         return SnapshotResponse(
-            service.snapshot(project_id, artifact), artifact.id, artifact.kind
+            service.snapshot(project_id, artifact),
+            artifact.id,
+            artifact.kind,
+            artifact.content_type,
         )
 
     return router

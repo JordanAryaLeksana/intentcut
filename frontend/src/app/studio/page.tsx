@@ -1,2 +1,4 @@
 import { CreateProject } from "@/features/projects/create-project";
-export default function StudioPage() { return <CreateProject />; }
+export default function StudioPage() {
+  return <CreateProject />;
+}

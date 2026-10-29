@@ -1,0 +1,58 @@
+{
+  "job_id": "bfdc0ea1-0851-4d83-b26a-bdc367ef8954",
+  "status": "succeeded",
+  "video_sha256": "e43ea4c9021aa3ba2ae53875db587e596c2ad4dc1847f2f40d12b5a4d95b1954",
+  "measured_frames": 443,
+  "duration": 14.766667,
+  "video_codec": "h264",
+  "audio_codec": "aac",
+  "manifest": {
+    "fps": 30,
+    "total_frames": 443,
+    "draft_revision": 1,
+    "base_job_id": "44c3fa22-3ee4-43ec-a476-3e99172c9af2",
+    "base_artifact_id": "b43e8613-09a4-4187-98f1-ad23d5653c09",
+    "cuts": [
+      {
+        "window_index": 6,
+        "media_id": "74ba6cdb-a3e5-4e7a-a147-860fcfed31b7",
+        "source_window_index": 0,
+        "playback_order": 0,
+        "start_seconds": 0.0,
+        "end_seconds": 5.0,
+        "output_start_frame": 0,
+        "output_end_frame": 151
+      },
+      {
+        "window_index": 2,
+        "media_id": "1132f4f2-8437-4aad-83d5-5d084e283c7a",
+        "source_window_index": 2,
+        "playback_order": 1,
+        "start_seconds": 10.0,
+        "end_seconds": 13.736667,
+        "output_start_frame": 151,
+        "output_end_frame": 262
+      },
+      {
+        "window_index": 4,
+        "media_id": "5d9c9888-4a49-4492-92d1-2bf575aa5eee",
+        "source_window_index": 1,
+        "playback_order": 2,
+        "start_seconds": 5.0,
+        "end_seconds": 10.0,
+        "output_start_frame": 262,
+        "output_end_frame": 412
+      },
+      {
+        "window_index": 8,
+        "media_id": "74ba6cdb-a3e5-4e7a-a147-860fcfed31b7",
+        "source_window_index": 2,
+        "playback_order": 3,
+        "start_seconds": 10.0,
+        "end_seconds": 11.05,
+        "output_start_frame": 412,
+        "output_end_frame": 443
+      }
+    ]
+  }
+}

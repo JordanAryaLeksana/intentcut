@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from intentcut.backend.ai_processing_adapter import RealAIProcessingAdapter
-from intentcut.backend.database.database_models import AIJob
+from intentcut.backend.storage.database_models import AIJob
 from intentcut.backend.first_cut.contracts import (
     FirstCutRequest,
     UploadedFirstCutRequest,
