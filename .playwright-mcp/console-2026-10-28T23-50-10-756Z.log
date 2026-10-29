@@ -1,8 +1,0 @@
-[     188ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
-[     203ms] [LOG] [HMR] connected @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
-[     638ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
-[     651ms] [LOG] [HMR] connected @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
-[   29510ms] [LOG] [Fast Refresh] rebuilding @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
-[   29540ms] [LOG] [Fast Refresh] done in 31ms @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
-[   29592ms] [LOG] [Fast Refresh] done in 31ms @ http://127.0.0.1:3001/_next/static/chunks/node_modules_next_dist_1bjkg68unqmjx._.js:719
-[   50698ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://127.0.0.1:8011/projects/583b19d1-5998-4623-9d96-c10fb126e365/media:0
