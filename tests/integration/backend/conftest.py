@@ -31,7 +31,8 @@ def postgres_url():
         "_test"
     ):
         pytest.fail("TEST_DATABASE_URL must use psycopg and a database ending in _test")
-    # No skip on missing drivers, unreachable servers, or schema failures once configured.
+    # No skip on missing drivers, unreachable servers, 
+    # or schema failures once configured.
     return value
 
 

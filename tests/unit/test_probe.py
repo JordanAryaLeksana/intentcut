@@ -7,7 +7,12 @@ from unittest.mock import create_autospec
 import pytest
 
 from intentcut.media.models import InvalidMediaError
-from intentcut.media.probe_parser import MediaProbe, ProbeParser, parse_probe_json, probe_media
+from intentcut.media.probe_parser import (
+    MediaProbe,
+    ProbeParser,
+    parse_probe_json,
+    probe_media,
+)
 from intentcut.media.process_runner import PROBE_TIMEOUT, ProcessRunner
 
 

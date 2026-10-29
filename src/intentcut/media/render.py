@@ -69,8 +69,8 @@ class VerticalVideoRenderer:
 
     @staticmethod
     def _validate_request(input_paths: Sequence[Path], output_path: Path) -> Path:
-        if len(input_paths) < 2:
-            raise InvalidMediaError("At least two input videos are required.")
+        if not input_paths:
+            raise InvalidMediaError("At least one input videos are required.")
         output_path = Path(output_path).absolute()
         if output_path.exists() or output_path.is_symlink():
             raise FileExistsError(f"Output already exists: {output_path}")
