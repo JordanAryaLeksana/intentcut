@@ -1,0 +1,24 @@
+.media-library-content { padding: 20px 16px; min-width: 0; }
+.media-dropzone { padding: 20px 12px 16px; border: 1px dashed var(--input); border-radius: var(--radius-md); background: var(--background); text-align: center; transition: border-color var(--duration-interaction) var(--ease-interaction), background-color var(--duration-interaction) var(--ease-interaction); }
+.media-dropzone[data-dragging="true"], .media-dropzone:focus-within { border-color: var(--primary); background: var(--surface-elevated); }
+.media-dropzone svg { color: var(--primary); margin: 0 auto 14px; }
+.media-dropzone h3, .media-empty h3 { font-size: 13px; font-weight: 500; }
+.media-dropzone p, .media-empty p { font-size: 12px; color: var(--muted-foreground); margin-top: 10px; }
+.media-choose { margin: 16px 0 4px; width: 100%; padding-inline: 8px; font-size: 12px; cursor: pointer; }
+.media-dropzone .media-limits { font-size: 11px; }
+.media-empty { padding: 24px 0; }
+.media-list { display: grid; gap: 10px; margin-top: 16px; max-height: 360px; overflow-y: auto; padding: 6px; margin-inline: -6px; }
+.media-file { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-elevated); }
+.media-file-type { font-size: 10px; color: var(--primary); letter-spacing: .08em; }
+.media-file h3 { overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; margin-top: 7px; font-weight: 500; }
+.media-file p { font-size: 11px; color: var(--muted-foreground); margin-top: 6px; }
+.media-file p span { font-family: var(--font-geist-sans); }
+.media-remove { min-height: 44px; margin-top: 8px; text-align: left; padding: 8px 4px; color: var(--muted-foreground); font-size: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; touch-action: manipulation; }
+.media-remove:hover { color: var(--foreground); }
+.media-errors { margin-top: 16px; padding: 12px; border-left: 2px solid var(--destructive); background: var(--background); font-size: 12px; overflow-wrap: anywhere; }
+.media-errors h3 { color: var(--destructive); font-size: 12px; font-weight: 500; }
+.media-errors ul { list-style: disc; padding-left: 14px; margin-top: 8px; }
+.media-errors li + li { margin-top: 8px; }
+.media-privacy { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 20px; color: var(--muted-foreground); font-size: 11px; }
+.media-persisted { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px; }
+.media-library-content button:disabled { cursor: not-allowed; opacity: .5; }

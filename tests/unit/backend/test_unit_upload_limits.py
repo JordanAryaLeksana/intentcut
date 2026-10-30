@@ -6,7 +6,7 @@ import pytest
 from starlette.requests import ClientDisconnect
 
 from intentcut.backend.app import create_app
-from intentcut.backend.upload_limits import UploadLimitsMiddleware
+from intentcut.backend.shared.upload_limits import UploadLimitsMiddleware
 
 
 def test_declared_request_limit_is_checked_before_service(client, project, database):

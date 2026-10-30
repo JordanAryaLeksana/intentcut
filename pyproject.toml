@@ -24,6 +24,7 @@ dependencies = [
 [project.scripts]
 intentcut-render = "intentcut.media.cli:main"
 intentcut-init-db = "intentcut.backend.database:main"
+intentcut-ai-worker = "intentcut.backend.worker_cli:main"
 
 [dependency-groups]
 dev = [
@@ -43,6 +44,8 @@ markers = [
 [tool.ruff]
 target-version = "py312"
 line-length = 88
+# Installed agent skills are third-party tooling, not IntentCut application code.
+extend-exclude = [".agents"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

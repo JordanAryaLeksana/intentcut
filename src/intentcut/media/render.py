@@ -6,6 +6,7 @@ from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
 
+from intentcut.media.frame_manifest import measured_frames
 from intentcut.media.models import (
     InvalidMediaError,
     MediaMetadata,
@@ -35,7 +36,13 @@ class VerticalVideoRenderer:
         self._muxer = TimelineMuxer(runner)
         self._validator = OutputValidator(runner)
 
-    def render(self, input_paths: Sequence[Path], output_path: Path) -> RenderResult:
+    def render(
+        self,
+        input_paths: Sequence[Path],
+        output_path: Path,
+        *,
+        measure_frames: bool = False,
+    ) -> RenderResult:
         output_path = self._validate_request(input_paths, output_path)
         sources = [self._probe.probe(Path(path)) for path in input_paths]
         # Round up to a whole video frame; at most one extra frame per source.
@@ -46,17 +53,28 @@ class VerticalVideoRenderer:
 
         # Staging beside the destination permits atomic hard-link publication.
         # The context manager removes intermediates on both success and failure.
+        frame_counts = [] if measure_frames else None
         with tempfile.TemporaryDirectory(
             prefix=".intentcut-", dir=output_path.parent
         ) as temporary:
             workdir = Path(temporary)
-            manifest, audio_path = self._prepare_timeline(sources, durations, workdir)
+            manifest, audio_path = (
+                self._prepare_timeline(sources, durations, workdir, frame_counts)
+                if measure_frames
+                else self._prepare_timeline(sources, durations, workdir)
+            )
             staged = workdir / "render.mp4"
             self._muxer.mux(manifest, audio_path, staged, total_duration)
 
             metadata = self._probe.probe(staged)
             self._validator.validate(metadata, total_duration)
             self._validator.verify_playback(staged, total_duration)
+            if frame_counts is not None and measured_frames(staged) != sum(
+                frame_counts
+            ):
+                raise OutputValidationError(
+                    "Rendered frames differ from normalized segments"
+                )
             # Fail if another process creates the destination while we render.
             os.link(staged, output_path)
 
@@ -65,6 +83,7 @@ class VerticalVideoRenderer:
             metadata=replace(metadata, path=output_path),
             input_count=len(sources),
             intended_duration=total_duration,
+            segment_frames=tuple(frame_counts or []),
         )
 
     @staticmethod
@@ -87,6 +106,7 @@ class VerticalVideoRenderer:
         sources: Sequence[MediaMetadata],
         durations: Sequence[float],
         workdir: Path,
+        frame_counts: list[int] | None = None,
     ) -> tuple[Path, Path]:
         entries = ["ffconcat version 1.0"]
         audio_path = workdir / "audio.pcm"
@@ -95,6 +115,13 @@ class VerticalVideoRenderer:
         ):
             segment = workdir / f"segment_{index:06d}.mp4"
             self._normalizer.normalize(source, segment, duration)
+            if frame_counts is not None:
+                count = measured_frames(segment)
+                if count != round(duration * FPS):
+                    raise OutputValidationError(
+                        "Normalized frame count differs from timeline"
+                    )
+                frame_counts.append(count)
             self._audio_timeline.append(segment, duration, audio_path)
             # Only generated filenames enter the manifest, never user input paths.
             entries += [f"file '{segment.name}'", f"duration {duration:.9f}"]

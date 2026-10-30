@@ -68,3 +68,4 @@ class RenderResult:
     metadata: MediaMetadata
     input_count: int
     intended_duration: float
+    segment_frames: tuple[int, ...] = ()

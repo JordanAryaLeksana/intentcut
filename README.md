@@ -1,8 +1,9 @@
 # IntentCut — Your AI Storytelling Director
 
-M1A implements a local, deterministic Python media engine. It joins two or more
-ordered videos into a vertical MP4. All code was newly written for this project.
-There are no application services or AI components in this milestone.
+IntentCut combines a reusable local media engine with a FastAPI backend for
+project uploads, bounded Muse first-cut processing, and persistent MP4/storyboard
+artifacts. See the [M2B.9 guide](M2B9_UPLOADED_MEDIA.md) for the current upload →
+queued job → worker → download workflow and its local-only access requirements.
 
 ## Requirements and setup
 
@@ -66,6 +67,13 @@ the flow, class responsibilities, compatibility API, and how to extend the engin
 The CLI, output settings, errors, and publication rules remain unchanged. Module
 functions are thin compatibility adapters; new code can use the classes directly.
 
+For backend work, start with the [backend layout](BACKEND_ARCHITECTURE.md).
+Project routes live in `backend/projects/`, upload routes and orchestration in
+`backend/media_ingestion/`, and settings in `backend/shared/`. Existing import
+paths remain supported. Public schemas live with their features; first-cut inputs
+and shared processing contracts are independent of HTTP adapters. Database, worker,
+and artifact internals retain their current structure while the frontend MVP is developed.
+
 ## Validation
 
 Run from the project root after the setup above:
@@ -121,3 +129,35 @@ commands or untrusted paths are inserted into filter expressions or manifests.
 - Input order/settings are deterministic; encoded bytes can vary by FFmpeg build.
 - Exceptions and process timeouts clean staging files; a machine crash or forced
   process kill may leave a hidden `.intentcut-*` staging directory.
+
+## Persistent AI outputs (M2B.7)
+
+AI workers now publish validated MP4 and storyboard copies and atomically commit
+both artifact references with lease-fenced job success. See the
+[M2B.7 implementation and operations guide](M2B7_ARTIFACTS.md) for schema
+initialization, worker wiring, uncertain-commit handling, and M2B.8 API guidance.
+
+## AI job REST API (M2B.8)
+
+Job status, artifact listing, verified MP4 downloads, and sanitized storyboard
+downloads remain project-scoped and local-only. No per-user authentication or
+authorization is implemented; the application must remain on trusted loopback.
+
+## Uploaded footage to MP4 (M2B.9)
+
+The [M2B.9 execution and acceptance guide](M2B9_UPLOADED_MEDIA.md) documents the
+working upload → queued job → Muse → grounded timeline → FFmpeg → artifact flow,
+budgets, API examples, worker commands, and an explicit opt-in live smoke test.
+POST now returns **202** when `AI_JOBS_LOCAL_ENABLED=true`,
+`AI_PROCESSING_ENABLED=true`, `MODEL_API_KEY`, and local FFmpeg/FFprobe are configured.
+It returns 503 when processing is unavailable. The worker uses the submitted media
+UUIDs exclusively; it has no cached `clip_b` fallback.
+
+```sh
+uv run intentcut-ai-worker --max-jobs 1
+```
+
+Workers must use the same database and storage settings as the API. API requests
+never run Muse or render video. Automated acceptance tests use fake Muse responses
+with real uploaded files, PostgreSQL, FFmpeg rendering, and HTTP downloads; live
+provider acceptance is a separate, paid opt-in step.

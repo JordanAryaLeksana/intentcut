@@ -1,11 +1,13 @@
 import subprocess
 from io import BytesIO
+from types import SimpleNamespace
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from sqlalchemy.exc import OperationalError
 
-from intentcut.backend.database import CommitOutcomeUnknown
-from intentcut.backend.media_ingestion_service import IngestionError, UploadSource
+from intentcut.backend.storage.database import CommitOutcomeUnknown, Database
+from intentcut.backend.media_ingestion.service import IngestionError, UploadSource
 from intentcut.media.models import (
     InvalidMediaError,
     MediaProcessError,
@@ -99,6 +101,56 @@ def test_lost_commit_ack_can_return_confirmed_assets(
     assets = service.ingest(project.id, [upload(), upload()])
     assert len(assets) == 2
     assert all((storage.root / asset.storage_key).exists() for asset in assets)
+
+
+@pytest.mark.parametrize(
+    "failure_at", ["flush", "commit_before", "commit_after", "close"]
+)
+def test_repository_failure_preserves_commit_outcome(
+    service, database, project, storage, failure_at
+):
+    """Exercise the real repository boundary and the service's file compensation."""
+    save = database.save_media_assets.side_effect
+    session = MagicMock()
+    session.__enter__.return_value = session
+    session.get.return_value = project
+    failure = RuntimeError("Simulated database connection failure")
+
+    def commit():
+        if failure_at == "commit_before":
+            raise failure
+        save(project.id, session.add_all.call_args.args[0])
+        if failure_at == "commit_after":
+            raise failure
+
+    session.commit.side_effect = commit
+    if failure_at == "flush":
+        session.flush.side_effect = failure
+    if failure_at == "close":
+        session.__exit__.side_effect = failure
+    repository = SimpleNamespace(_sessions=Mock(return_value=session))
+    database.save_media_assets.side_effect = lambda project_id, assets: (
+        Database.save_media_assets(repository, project_id, assets)
+    )
+
+    if failure_at == "flush":
+        with pytest.raises(RuntimeError, match="Simulated"):
+            service.ingest(project.id, [upload()])
+        session.commit.assert_not_called()
+        assert not list(storage.root.rglob("original"))
+    elif failure_at == "commit_before":
+        with pytest.raises(IngestionError) as error:
+            service.ingest(project.id, [upload()])
+        assert error.value.code == "commit_uncertain"
+        assert len(list(storage.root.rglob("original"))) == 1
+    else:
+        assets = service.ingest(project.id, [upload(), upload()])
+        assert len(assets) == 2
+        assert all(
+            (storage.root / asset.storage_key).read_bytes() == b"video"
+            for asset in assets
+        )
+    assert not list((storage.root / ".staging").iterdir())
 
 
 @pytest.mark.parametrize(

@@ -6,21 +6,37 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
-from intentcut.backend.api_schemas import ErrorResponse
-from intentcut.backend.backend_settings import BackendSettings
-from intentcut.backend.database import Database, MediaNotFound, ProjectNotFound
-from intentcut.backend.local_media_storage import LocalMediaStorage
-from intentcut.backend.media_ingestion_service import (
+from intentcut.backend.ai_job_service import AIJobAPIError, AIJobService
+from intentcut.backend.artifacts.routes import create_artifact_router
+from intentcut.backend.editing.revision_routes import create_revision_router
+from intentcut.backend.editing.revisions import RevisionService
+from intentcut.backend.editing.routes import create_editing_router
+from intentcut.backend.editing.service import EditingService
+from intentcut.backend.jobs.routes import create_ai_job_router
+from intentcut.backend.media_ingestion.routes import create_media_router
+from intentcut.backend.media_ingestion.service import (
     IngestionError,
     MediaIngestionService,
 )
-from intentcut.backend.media_routes import create_media_router
-from intentcut.backend.project_routes import create_project_router
-from intentcut.backend.upload_limits import UploadLimitsMiddleware
+from intentcut.backend.projects.routes import create_project_router
+from intentcut.backend.shared.http_errors import ErrorResponse
+from intentcut.backend.shared.http_security import (
+    PRIVATE_HEADERS,
+    AIJobLocalAccessMiddleware,
+)
+from intentcut.backend.shared.settings import BackendSettings
+from intentcut.backend.shared.upload_limits import UploadLimitsMiddleware
+from intentcut.backend.storage.database import Database, MediaNotFound, ProjectNotFound
+from intentcut.backend.storage.local_media_storage import LocalMediaStorage
+from intentcut.backend.transcription.routes import create_transcription_router
+from intentcut.backend.transcription.service import TranscriptionService
+from intentcut.backend.visuals.routes import create_visual_router
+from intentcut.backend.visuals.service import VisualService
 from intentcut.media.probe_parser import MediaProbe
 
 logger = logging.getLogger(__name__)
@@ -62,10 +78,40 @@ def create_app(
 
     app = FastAPI(title="IntentCut Media Ingestion", version="0.2.0", lifespan=lifespan)
     app.add_middleware(
-        UploadLimitsMiddleware, max_body_bytes=settings.max_request_bytes
+        UploadLimitsMiddleware,
+        max_body_bytes=settings.max_request_bytes,
     )
+    app.add_middleware(
+        AIJobLocalAccessMiddleware,
+        enabled=settings.ai_jobs_local_enabled,
+        browser_enabled=settings.ai_jobs_browser_enabled,
+        browser_origins=settings.cors_origins,
+    )
+
+    # Browser access from the local Next.js development server.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT"],
+        allow_headers=["Content-Type"],
+    )
+
     app.include_router(create_project_router(database))
     app.include_router(create_media_router(database, service, settings))
+    ai_service = AIJobService(database, storage, settings)
+    app.include_router(create_visual_router(VisualService(ai_service)))
+    app.include_router(create_ai_job_router(ai_service))
+    app.include_router(create_transcription_router(TranscriptionService(ai_service)))
+    app.include_router(create_artifact_router(ai_service))
+    app.include_router(create_editing_router(EditingService(ai_service)))
+    app.include_router(
+        create_revision_router(RevisionService(EditingService(ai_service)))
+    )
+
+    @app.exception_handler(AIJobAPIError)
+    async def ai_job_error(request: Request, exc: AIJobAPIError) -> JSONResponse:
+        return error_response(exc.status, exc.code, exc.message)
 
     @app.exception_handler(IngestionError)
     async def ingestion_error(request: Request, exc: IngestionError) -> JSONResponse:
@@ -123,4 +169,6 @@ def error_response(
     status: int, code: str, message: str, file_index: int | None = None
 ) -> JSONResponse:
     body = ErrorResponse(code=code, message=message, file_index=file_index)
-    return JSONResponse(body.model_dump(exclude_none=True), status_code=status)
+    return JSONResponse(
+        body.model_dump(exclude_none=True), status_code=status, headers=PRIVATE_HEADERS
+    )

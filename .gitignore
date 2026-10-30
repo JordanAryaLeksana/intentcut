@@ -17,3 +17,25 @@ build/
 *.mkv
 .local
 docs/
+
+# Local verification output and generated media (preserve on disk, never publish).
+/.playwright-mcp/
+/.pytest_tmp*/
+node_modules/
+.next/
+.turbo/
+*.tsbuildinfo
+/backups/
+*.dump
+*.backup
+*.sql.gz
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.aac
+*.ogg
+*.webm
+*.avi
+*.m4v
+.DS_Store

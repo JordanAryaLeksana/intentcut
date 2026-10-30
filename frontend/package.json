@@ -1,0 +1,33 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test:api": "tsx --test src/lib/api/modular-api.test.mjs",
+    "test:media": "tsx --test src/features/studio/media/selection.test.mjs",
+    "test:storyboard": "tsx --test src/features/studio/ai-director/storyboard/storyboard-schema.test.mjs",
+    "test:timeline": "tsx --test src/features/studio/__tests__/narrative-timeline.test.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.105.0",
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  }
+}

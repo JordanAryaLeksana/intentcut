@@ -2,11 +2,11 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from intentcut.backend.database import CommitOutcomeUnknown
-from intentcut.backend.database_models import MediaAsset
+from intentcut.backend.storage.database import CommitOutcomeUnknown
+from intentcut.backend.storage.database_models import MediaAsset
 from intentcut.media.probe_parser import MediaProbe
 
 pytestmark = [pytest.mark.integration, pytest.mark.postgres]
@@ -94,6 +94,53 @@ def test_lost_commit_ack_reconciles_against_postgresql(
     assert response.status_code == 201, response.text
     assert len(database.list_media(UUID(project["id"]), 100, 0)) == 1
     assert len(list(storage.root.rglob("original"))) == 1
+
+
+@pytest.mark.parametrize("failure_at", ["commit", "close"])
+def test_post_commit_session_failure_preserves_uploaded_files(
+    client, project, database, storage, clip_bytes, monkeypatch, failure_at
+):
+    original_commit = database._sessions.class_.commit
+    original_close = database._sessions.class_.close
+    committed = False
+    injected = False
+
+    def fail_once(stage):
+        nonlocal injected
+        if committed and not injected and stage == failure_at:
+            injected = True
+            raise SQLAlchemyError("Lost connection after media commit")
+
+    def commit(session):
+        nonlocal committed
+        original_commit(session)
+        committed = True
+        fail_once("commit")
+
+    def close(session):
+        original_close(session)
+        fail_once("close")
+
+    path = f"/projects/{project['id']}/media"
+    with monkeypatch.context() as patch:
+        patch.setattr(database._sessions.class_, "commit", commit)
+        patch.setattr(database._sessions.class_, "close", close)
+        response = client.post(
+            path,
+            files=[("files", ("a.mp4", clip_bytes)), ("files", ("b.mp4", clip_bytes))],
+        )
+    assert injected
+    assert response.status_code == 201, response.text
+    assets = database.list_media(UUID(project["id"]), 100, 0)
+    assert {str(asset.id) for asset in assets} == {
+        item["id"] for item in response.json()["items"]
+    }
+    assert len(assets) == 2
+    assert all(
+        (storage.root / asset.storage_key).read_bytes() == clip_bytes
+        for asset in assets
+    )
+    assert not list((storage.root / ".staging").iterdir())
 
 
 def test_foreign_key_is_enforced_by_postgresql(client, project, database, clip_bytes):
