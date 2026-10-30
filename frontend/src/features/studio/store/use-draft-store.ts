@@ -35,8 +35,8 @@ interface DraftState {
   restore: (projectId: string, saved: SavedDraft | null, force?: boolean) => void;
   saved: (projectId: string, saved: SavedDraft) => void;
   applyAccepted: (projectId: string, saved: SavedDraft, expectedLocalRevision: number) => void;
-  dockTabByProject: Record<string, "director" | "inspector">;
-  setDockTab: (projectId: string, tab: "director" | "inspector") => void;
+  dockTabByProject: Record<string, "director" | "inspector" | "visuals">;
+  setDockTab: (projectId: string, tab: "director" | "inspector" | "visuals") => void;
   receive: (projectId: string, base: DraftBase, storyboard: PublicStoryboard) => void;
   acceptPending: (projectId: string) => void;
   select: (projectId: string, id: string) => void;

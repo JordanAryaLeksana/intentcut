@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { VisualsPanel } from "./visuals/visuals-panel";
 import { AIDirector } from "./ai-director/ai-director";
 import { useProjectMedia } from "./media/hooks/use-project-media";
 import { useSelectedMediaIds } from "./store/use-editor-store";
@@ -8,14 +9,14 @@ import { useDraftStore } from "./store/use-draft-store";
 import { DraftControls } from "./draft-timeline";
 import { formatBytes } from "./media/selection";
 
-type DockTab = "director" | "inspector";
-const TABS: DockTab[] = ["director", "inspector"];
+type DockTab = "director" | "inspector" | "visuals";
+const TABS: DockTab[] = ["director", "inspector", "visuals"];
 
 export function dockTabForKey(current: DockTab, key: string): DockTab | null {
   if (key === "Home") return TABS[0];
   if (key === "End") return TABS[TABS.length - 1];
   if (key === "ArrowRight" || key === "ArrowLeft") {
-    return TABS[(TABS.indexOf(current) + 1) % TABS.length];
+    return TABS[(TABS.indexOf(current) + (key === "ArrowLeft" ? TABS.length - 1 : 1)) % TABS.length];
   }
   return null;
 }
@@ -112,7 +113,7 @@ export function StudioDock({ projectId }: { projectId?: string }) {
               buttons.current[next]?.focus();
             }}
           >
-            {tab === "director" ? "AI Story Director" : "Inspector"}
+            {tab === "director" ? "AI Story Director" : tab === "inspector" ? "Inspector" : "AI Visuals"}
           </button>
         ))}
       </div>
@@ -127,6 +128,7 @@ export function StudioDock({ projectId }: { projectId?: string }) {
           {projectId ? <CutInspector key={projectId} projectId={projectId} /> : <p>Open a project to inspect its saved footage.</p>}
         </div>
       </div>
+      <div className="studio-dockPanel" id="dock-panel-visuals" role="tabpanel" aria-labelledby="dock-tab-visuals" tabIndex={0} hidden={active!=="visuals"}><VisualsPanel projectId={projectId}/></div>
     </aside>
   );
 }

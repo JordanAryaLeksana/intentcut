@@ -35,6 +35,8 @@ from intentcut.backend.storage.database import Database, MediaNotFound, ProjectN
 from intentcut.backend.storage.local_media_storage import LocalMediaStorage
 from intentcut.backend.transcription.routes import create_transcription_router
 from intentcut.backend.transcription.service import TranscriptionService
+from intentcut.backend.visuals.routes import create_visual_router
+from intentcut.backend.visuals.service import VisualService
 from intentcut.media.probe_parser import MediaProbe
 
 logger = logging.getLogger(__name__)
@@ -98,6 +100,7 @@ def create_app(
     app.include_router(create_project_router(database))
     app.include_router(create_media_router(database, service, settings))
     ai_service = AIJobService(database, storage, settings)
+    app.include_router(create_visual_router(VisualService(ai_service)))
     app.include_router(create_ai_job_router(ai_service))
     app.include_router(create_transcription_router(TranscriptionService(ai_service)))
     app.include_router(create_artifact_router(ai_service))
