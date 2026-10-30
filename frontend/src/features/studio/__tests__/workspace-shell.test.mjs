@@ -15,16 +15,24 @@ test("dock exposes labelled tabs and keeps the inactive panel mounted and hidden
   assert.match(html, /id="dock-tab-director"[^>]*aria-selected="true"[^>]*aria-controls="dock-panel-director"[^>]*tabindex="0"/);
   assert.match(html, /id="dock-tab-inspector"[^>]*aria-selected="false"[^>]*aria-controls="dock-panel-inspector"[^>]*tabindex="-1"/);
   assert.match(html, /id="dock-panel-inspector"[^>]*role="tabpanel"[^>]*hidden=""/);
+  for (const tab of ["director", "inspector", "captions", "visuals"]) {
+    assert.match(html, new RegExp(`id="dock-tab-${tab}"`));
+    assert.match(html, new RegExp(`id="dock-panel-${tab}"`));
+  }
+  assert.equal((html.match(/role="tab"/g) ?? []).length, 4);
   assert.match(html, /Open a project to inspect its saved footage/);
   assert.match(html, /Create a project and upload footage to begin/);
 });
 
 test("dock keyboard navigation wraps and supports Home and End", () => {
   assert.equal(dockTabForKey("director", "ArrowRight"), "inspector");
-  assert.equal(dockTabForKey("inspector", "ArrowRight"), "visuals");
+  assert.equal(dockTabForKey("inspector", "ArrowRight"), "captions");
   assert.equal(dockTabForKey("director", "ArrowLeft"), "visuals");
   assert.equal(dockTabForKey("inspector", "Home"), "director");
   assert.equal(dockTabForKey("director", "End"), "visuals");
+  assert.equal(dockTabForKey("captions", "ArrowRight"), "visuals");
+  assert.equal(dockTabForKey("visuals", "ArrowRight"), "director");
+  assert.equal(dockTabForKey("visuals", "ArrowLeft"), "captions");
   assert.equal(dockTabForKey("director", "Tab"), null);
 });
 

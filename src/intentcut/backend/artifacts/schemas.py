@@ -14,6 +14,8 @@ class AIJobArtifactResponse(BaseModel):
     content_type: str | None = None
     parent_artifact_id: UUID | None = None
     parent_sha256: str | None = None
+    caption_set_id: UUID | None = None
+    caption_revision: int | None = None
 
 
 class AIJobArtifactListResponse(BaseModel):

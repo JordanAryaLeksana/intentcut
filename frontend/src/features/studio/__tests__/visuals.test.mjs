@@ -20,3 +20,17 @@ test("409 cover conflict does not retry",async()=>{reset();let calls=0;globalThi
 test("project isolation uses separate routes",async()=>{reset();const urls=[];globalThis.fetch=async(url)=>{urls.push(url);return Response.json({items:[],cover:null});};await getVisualHistory(project);await getVisualHistory(other);assert.notEqual(urls[0],urls[1]);});
 test("accessible form shows actual supported controls",()=>{const html=renderToStaticMarkup(createElement(VisualPromptForm,{prompt:"Hello",setPrompt:()=>{},preset:"cover",setPreset:()=>{},operation:"edit",setOperation:()=>{},source:artifact,setSource:()=>{},frame:"0.5",setFrame:()=>{},video:artifact,images:[],pending:false,onSubmit:()=>{}}));assert.match(html,/Image instruction/);assert.match(html,/Frame position/);assert.match(html,/Request image edit/);assert.match(html,/actual generated pixel dimensions are model-dependent/);assert.match(html,/not video title cards/);assert.match(html,/paid Muse Image credits/);});
 test("empty project preview submits nothing",()=>{assert.match(renderToStaticMarkup(createElement(VisualsPanel)),/Open a project/);});
+
+
+test("frame reference follows the exact monitor rendition and rejects stale metadata",async()=>{
+  const {monitorVideo,visualReference}=await import("../monitor-video.ts");
+  const original={id:artifact,kind:"video",size_bytes:100,sha256:"a".repeat(64)};
+  const captioned={...original,id:other,kind:"rendition"};
+  assert.equal(monitorVideo([original,captioned])?.id,artifact);
+  assert.equal(monitorVideo([original,captioned],other)?.id,other);
+  assert.equal(monitorVideo([original],other),undefined);
+  assert.equal(monitorVideo([{...captioned,kind:"image"}],other),undefined);
+  assert.equal(visualReference("current-video",other),other);
+  assert.equal(visualReference("current-video"),"");
+  assert.equal(visualReference(artifact,other),artifact);
+});

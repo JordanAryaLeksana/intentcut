@@ -1,0 +1,28 @@
+{
+  "verification": "Real FFmpeg fixture with synthetic caption artifact; no paid inference",
+  "test": "test_real_visible_export_exact_revision_and_source_preservation",
+  "caption_revision": 2,
+  "text": "FIRST REVISION",
+  "source": {
+    "sha256": "1532c59ae2dae637a492fdaec30503dbb7d3e3ecf7c58663ad691515f955d7f1",
+    "frames": 48,
+    "fps": "24/1",
+    "duration_seconds": 2.0,
+    "video_codec": "h264",
+    "audio_codec": "aac"
+  },
+  "output": {
+    "sha256": "c92b46b9ef448aa657a77f37cd1a9a184dd532c5d6c5054295ad384d2ececf11",
+    "frames": 48,
+    "fps": "24/1",
+    "duration_seconds": 2.0,
+    "video_codec": "h264",
+    "audio_codec": "aac"
+  },
+  "decoded_audio_unchanged": true,
+  "white_pixels_original_at_800ms": 0,
+  "white_pixels_captioned_at_800ms": 164,
+  "white_pixels_captioned_before_cue_at_100ms": 0,
+  "local_evidence_video": ".local/batch4-evidence/fixture-captioned.mp4",
+  "local_frame": ".local/batch4-evidence/captioned-0800ms.png"
+}

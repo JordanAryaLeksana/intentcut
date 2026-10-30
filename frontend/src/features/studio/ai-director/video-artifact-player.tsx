@@ -1,6 +1,10 @@
 
 "use client";
 
+import { useEffect, useRef } from "react";
+import { useCaptionStore } from "../captions/store";
+import { previewCues } from "../captions/preview";
+
 import {
   MAX_PREVIEW_BYTES,
   useVideoArtifact,
@@ -25,6 +29,20 @@ export function VideoArtifactPlayer({
     artifactId,
     sizeBytes,
   );
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const trackRef = useRef<{video: HTMLVideoElement; track: TextTrack} | null>(null);
+  const draft = useCaptionStore(state=>state.drafts[state.activeByVideo[`${projectId}:${artifactId}`]]);
+  useEffect(()=>{
+    const video=videoRef.current;
+    if (!video || typeof VTTCue === "undefined") return;
+    if (!trackRef.current || trackRef.current.video!==video) trackRef.current={video,track:video.addTextTrack("captions","Caption preview", "")};
+    const track=trackRef.current.track;
+    if (track.cues) for (const cue of Array.from(track.cues)) track.removeCue(cue);
+    for (const cue of previewCues(draft)) track.addCue(new VTTCue(cue.start,cue.end,cue.text));
+    track.mode=draft ? "showing" : "disabled";
+    return ()=>{track.mode="disabled";if(track.cues) for(const cue of Array.from(track.cues)) track.removeCue(cue);};
+  },[draft,preview.status]);
 
   const previewAllowed =
     Number.isSafeInteger(sizeBytes) &&
@@ -87,19 +105,21 @@ export function VideoArtifactPlayer({
       {preview.status === "ready" && (
         <div className="studio-playerReady space-y-3">
           <video
+            ref={videoRef}
             controls
             playsInline
             preload="metadata"
             src={preview.url}
             className="w-full rounded-lg bg-black"
-            aria-label="Rendered first cut"
+            aria-label="Rendered video"
           >
             Your browser does not support MP4 playback.
           </video>
 
+          {draft && <p className="studio-storyboardNote">Live caption preview · edits are not burned into this MP4. Use Export Captioned MP4 to create a subtitled version.</p>}
           <a
             href={preview.url}
-            download={`intentcut-first-cut-${artifactId}.mp4`}
+            download={`intentcut-render-${artifactId}.mp4`}
             className="button button-primary"
           >
             Download MP4

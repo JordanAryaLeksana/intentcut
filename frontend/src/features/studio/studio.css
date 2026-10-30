@@ -203,6 +203,24 @@
 .revision-comparison ol, .revision-reasons { padding-left: 16px; }
 .revision-reasons li { margin-block: 6px; }
 
+/* Captions use the existing dock, with its own scrolling and native form controls. */
+.studio-captions { min-width: 0; }
+.studio-captionBody { padding: 16px; display: grid; gap: 16px; font-size: 13px; line-height: 1.5; }
+.studio-captionEditor { display: grid; gap: 12px; min-width: 0; }
+.studio-captionCues { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.studio-captionCues li { display: grid; gap: 8px; min-width: 0; }
+.studio-captionCueHeader { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.studio-captionCueHeader label { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.studio-captionCueHeader input { accent-color: var(--primary); width: 18px; height: 18px; }
+.studio-captionCues textarea { width: 100%; min-height: 80px; resize: vertical; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); padding: 10px; font: inherit; }
+.studio-captionCues textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.studio-captionActions { display: flex; gap: 8px; flex-wrap: wrap; }
+.studio-captionJob { padding: 10px 0; border-top: 1px solid var(--border); }
+.studio-captionOutput { display: grid; gap: 8px; }
+@media (max-width: 600px) {
+  .studio-captionCueHeader label { min-height: 44px; }
+  .studio-captionActions .button { width: 100%; min-height: 44px; }
+}
 .studio-visualBody { padding: 16px; display: grid; gap: 16px; font-size: 13px; line-height: 1.5; min-width: 0; }
 .studio-visualForm, .studio-visualForm label, .studio-visualAsset, .studio-visualImage { display: grid; gap: 10px; min-width: 0; }
 .studio-visualForm textarea, .studio-visualForm select, .studio-visualForm input { width: 100%; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font: inherit; }

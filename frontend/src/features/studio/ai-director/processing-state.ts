@@ -9,6 +9,9 @@ export const STAGE_COPY: Record<AIProgressStage, { title: string; description: s
   generating_image: {title:"Generating image", description:"Muse Image is processing the instruction."},
   validating_image: {title:"Validating image", description:"Checking the output encoding and decoded dimensions."},
   preparing_media: { title: "Preparing media", description: "Checking the selected footage and verifying source files." },
+  extracting_audio: { title: "Extracting audio", description: "Preparing the full video audio timeline." },
+  transcribing_audio: { title: "Transcribing audio", description: "Muse Voice is processing the audio." },
+  validating_transcript: { title: "Validating captions", description: "Checking the returned turn text and timing." },
   extracting_windows: { title: "Extracting windows", description: "Preparing video windows for analysis." },
   understanding_footage: { title: "Understanding footage", description: "Analyzing and validating evidence from your footage." },
   selecting_story: { title: "Selecting the story", description: "Choosing a sequence and validating the edit plan." },
@@ -47,6 +50,10 @@ export function formatElapsed(seconds: number | null): string {
 
 export function failureDescription(code: string | null): string {
   switch (code) {
+    case "caption_render_unsupported": return "Subtitle rendering is unavailable or this source format is unsupported.";
+    case "invalid_transcript": return "The transcription did not pass validation. No replacement request was submitted.";
+    case "transcription_outcome_unknown": return "The transcription outcome is uncertain. Automatic retry is disabled to avoid duplicate charges.";
+    case "transcription_rate_limited": return "Muse Voice rate-limited this request. It has not been retried automatically.";
     case "provider_unavailable": return "The AI service could not complete this attempt.";
     case "invalid_ai_selection": return "The proposed edit plan did not pass validation.";
     case "source_unavailable": return "Source footage could not be read or verified.";

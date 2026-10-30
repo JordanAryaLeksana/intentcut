@@ -306,6 +306,52 @@ class RevisionProposal(Base):
     applied_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
+class CaptionSet(Base):
+    """Mutable head; original transcript and submitted snapshots remain immutable."""
+
+    __tablename__ = "caption_sets"
+    __table_args__ = (
+        CheckConstraint("revision > 0", name="caption_set_revision"),
+        CheckConstraint(
+            "duration_ms > 0 AND duration_ms <= 86400000", name="caption_set_duration"
+        ),
+        CheckConstraint("jsonb_typeof(cues) = 'array'", name="caption_set_cues"),
+        CheckConstraint(
+            "parent_sha256 ~ '^[0-9a-f]{64}$' "
+            "AND transcription_sha256 ~ '^[0-9a-f]{64}$'",
+            name="caption_set_hashes",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(
+        ForeignKey("ai_job_artifacts.id", ondelete="RESTRICT"), primary_key=True
+    )
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    parent_artifact_id: Mapped[UUID] = mapped_column(
+        ForeignKey("ai_job_artifacts.id", ondelete="RESTRICT")
+    )
+    parent_sha256: Mapped[str] = mapped_column(String(64))
+    transcription_sha256: Mapped[str] = mapped_column(String(64))
+    revision: Mapped[int] = mapped_column(Integer)
+    duration_ms: Mapped[int] = mapped_column(Integer)
+    cues: Mapped[list[dict]] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+Index(
+    "uq_caption_export_revision",
+    AIJob.project_id,
+    AIJob.request_payload["caption_set_id"].astext,
+    AIJob.request_payload["caption_revision"].astext,
+    unique=True,
+    postgresql_where=AIJob.request_payload["pipeline_version"].astext
+    == "caption_burn_v1",
+)
+
+
 class ProjectCover(Base):
     __tablename__ = "project_covers"
     __table_args__ = (

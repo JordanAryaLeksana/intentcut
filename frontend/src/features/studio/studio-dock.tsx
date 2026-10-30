@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { CaptionsPanel } from "./captions/captions-panel";
 import { VisualsPanel } from "./visuals/visuals-panel";
 import { AIDirector } from "./ai-director/ai-director";
 import { useProjectMedia } from "./media/hooks/use-project-media";
@@ -9,8 +10,8 @@ import { useDraftStore } from "./store/use-draft-store";
 import { DraftControls } from "./draft-timeline";
 import { formatBytes } from "./media/selection";
 
-type DockTab = "director" | "inspector" | "visuals";
-const TABS: DockTab[] = ["director", "inspector", "visuals"];
+type DockTab = "director" | "inspector" | "captions" | "visuals";
+const TABS: DockTab[] = ["director", "inspector", "captions", "visuals"];
 
 export function dockTabForKey(current: DockTab, key: string): DockTab | null {
   if (key === "Home") return TABS[0];
@@ -113,11 +114,11 @@ export function StudioDock({ projectId }: { projectId?: string }) {
               buttons.current[next]?.focus();
             }}
           >
-            {tab === "director" ? "AI Story Director" : tab === "inspector" ? "Inspector" : "AI Visuals"}
+            {tab === "director" ? "AI Story Director" : tab === "inspector" ? "Inspector" : tab === "captions" ? "Captions" : "AI Visuals"}
           </button>
         ))}
       </div>
-      {/* Keep both panels mounted: tab changes must not cancel uploads, lose a
+      {/* Keep all panels mounted: tab changes must not cancel uploads, lose a
           creative brief, restart recovery, or reset a storyboard viewer. */}
       <div className="studio-dockPanel" id="dock-panel-director" role="tabpanel" aria-labelledby="dock-tab-director" tabIndex={0} hidden={active !== "director"}>
         <AIDirector projectId={projectId} />
@@ -127,6 +128,9 @@ export function StudioDock({ projectId }: { projectId?: string }) {
         <div className="studio-inspectorBody">
           {projectId ? <CutInspector key={projectId} projectId={projectId} /> : <p>Open a project to inspect its saved footage.</p>}
         </div>
+      </div>
+      <div className="studio-dockPanel" id="dock-panel-captions" role="tabpanel" aria-labelledby="dock-tab-captions" tabIndex={0} hidden={active !== "captions"}>
+        <CaptionsPanel projectId={projectId} />
       </div>
       <div className="studio-dockPanel" id="dock-panel-visuals" role="tabpanel" aria-labelledby="dock-tab-visuals" tabIndex={0} hidden={active!=="visuals"}><VisualsPanel projectId={projectId}/></div>
     </aside>

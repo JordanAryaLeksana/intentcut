@@ -1,5 +1,6 @@
 "use client";
 
+import { useCaptionStore } from "./captions/store";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api/transport";
@@ -33,7 +34,7 @@ export function DraftPersistence({projectId, draft}: {projectId:string; draft:Ti
   const render = useMutation({mutationFn: () => {
     if (!saved || !matches) throw new Error("Save this draft before rendering.");
     return renderDraft(projectId, saved.revision);
-  }, retry:false, onSuccess: jobId => {setPreview(projectId,jobId);void client.invalidateQueries({queryKey:aiJobKey(projectId,jobId)});void client.invalidateQueries({queryKey:renderVersionsKey(projectId)});}});
+  }, retry:false, onSuccess: jobId => {useCaptionStore.getState().preview(projectId);setPreview(projectId,jobId);void client.invalidateQueries({queryKey:aiJobKey(projectId,jobId)});void client.invalidateQueries({queryKey:renderVersionsKey(projectId)});}});
   async function reloadSaved() {
     setReloadError(null);
     try {const result = await getSavedDraft(projectId);restore(projectId,result,true);client.setQueryData(savedDraftKey(projectId),result);save.reset();render.reset();}
@@ -55,8 +56,11 @@ export function DraftPersistence({projectId, draft}: {projectId:string; draft:Ti
 
 export function RenderVersionPicker({projectId}: {projectId:string}) {
   const {manual, versions} = usePreviewJob(projectId);
+  const captioned = useCaptionStore(state=>state.previews[projectId]);
+  const clearCaptioned = useCaptionStore(state=>state.preview);
   const setPreview = useDraftStore(state=>state.setPreview);
-  return <label className="studio-renderPicker">Preview version <select value={manual?.job_id ?? ""} onChange={event=>setPreview(projectId,event.target.value || null)}>
+  return <label className="studio-renderPicker">Preview version <select value={captioned ? `captioned:${captioned.artifactId}` : manual?.job_id ?? ""} onChange={event=>{if(event.target.value.startsWith("captioned:")) return;clearCaptioned(projectId);setPreview(projectId,event.target.value || null);}}>
+    {captioned && <option value={`captioned:${captioned.artifactId}`}>{captioned.label}</option>}
     <option value="">Original AI first cut</option>
     {versions.data?.map(v=><option key={v.job_id} value={v.job_id}>Draft revision {v.revision} · {v.status}</option>)}
   </select></label>;

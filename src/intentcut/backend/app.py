@@ -13,6 +13,8 @@ from starlette.responses import JSONResponse
 
 from intentcut.backend.ai_job_service import AIJobAPIError, AIJobService
 from intentcut.backend.artifacts.routes import create_artifact_router
+from intentcut.backend.captions.routes import create_caption_router
+from intentcut.backend.captions.service import CaptionService
 from intentcut.backend.editing.revision_routes import create_revision_router
 from intentcut.backend.editing.revisions import RevisionService
 from intentcut.backend.editing.routes import create_editing_router
@@ -100,6 +102,7 @@ def create_app(
     app.include_router(create_project_router(database))
     app.include_router(create_media_router(database, service, settings))
     ai_service = AIJobService(database, storage, settings)
+    app.include_router(create_caption_router(CaptionService(ai_service)))
     app.include_router(create_visual_router(VisualService(ai_service)))
     app.include_router(create_ai_job_router(ai_service))
     app.include_router(create_transcription_router(TranscriptionService(ai_service)))

@@ -12,7 +12,9 @@ from intentcut.backend.artifacts.derived import (
     CaptionArtifactResult,
     DerivedResult,
     ImageArtifactResult,
+    VideoRenditionResult,
 )
+from intentcut.backend.captions.processor import CaptionBurnProcessor
 from intentcut.backend.contracts import (
     AIProcessingError,
     JobLeaseLost,
@@ -78,6 +80,10 @@ class AIJobWorker:
                         JobType.CAPTION_TRANSCRIBE, processor, CaptionArtifactResult
                     )
                 ]
+            )
+        elif isinstance(processor, CaptionBurnProcessor):
+            processor = JobDispatcher(
+                [JobRegistration(JobType.CAPTION_BURN, processor, VideoRenditionResult)]
             )
         elif isinstance(processor, VisualProcessor):
             processor = JobDispatcher(

@@ -6,6 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api/transport";
 import { downloadAIArtifact } from "@/lib/api/artifacts";
 import { getVisualHistory, setProjectCover, submitVisual, type VisualHistory, type VisualJob, type VisualRequest } from "@/lib/api/visuals";
+import { useCaptionStore } from "../captions/store";
+import { monitorVideo, visualReference } from "../monitor-video";
 import { usePreviewJob } from "../use-editing";
 import { useAIArtifacts } from "../ai-director/hooks/use-ai-artifacts";
 import { useAIJobStatus } from "../ai-director/hooks/use-ai-job-status";
@@ -57,16 +59,20 @@ export function VisualPromptForm({prompt,setPrompt,preset,setPreset,operation,se
   </form>;
 }
 function ConnectedVisuals({project}:{project:string}){
-  const client=useQueryClient();const {jobId}=usePreviewJob(project);const artifacts=useAIArtifacts(project,jobId??"");
-  const video=artifacts.data?.items.find(a=>a.kind==="video")?.id;
+  const client=useQueryClient();const {jobId:baseJob}=usePreviewJob(project);
+  const override=useCaptionStore(state=>state.previews[project]);
+  const jobId=override?.jobId??baseJob;
+  const artifacts=useAIArtifacts(project,jobId);
+  const video=monitorVideo(artifacts.data?.items??[],override?.artifactId)?.id;
   const history=useQuery({queryKey:visualHistoryKey(project),queryFn:({signal})=>getVisualHistory(project,signal),retry:false,refetchOnWindowFocus:true,refetchInterval:q=>q.state.error?false:visualPolling(q.state.data)});
   const [prompt,setPrompt]=useState("");const [preset,setPreset]=useState<VisualJob["preset"]>("thumbnail");
   const [operation,setOperation]=useState<VisualJob["operation"]>("generate");const [source,setSource]=useState("");const [frame,setFrame]=useState("0");
+  const selectedSource=visualReference(source,video);
   const [requestId,setRequestId]=useState(()=>crypto.randomUUID());
   const refresh=()=>void client.invalidateQueries({queryKey:visualHistoryKey(project)});
   const submission=useMutation({mutationFn:()=>{
     const body:VisualRequest={request_id:requestId,prompt,preset,operation};
-    if(operation==="edit"){body.source_artifact_id=source;if(source===video)body.frame_seconds=Number(frame);}
+    if(operation==="edit"){body.source_artifact_id=selectedSource;if(selectedSource===video)body.frame_seconds=Number(frame);}
     return submitVisual(project,body);
   },retry:false,onSuccess:()=>{setRequestId(crypto.randomUUID());refresh();}});
   const selection=useMutation({mutationFn:(id:string)=>setProjectCover(project,id,history.data?.cover?.revision??0),retry:false,onSuccess:refresh});
@@ -75,7 +81,7 @@ function ConnectedVisuals({project}:{project:string}){
   const data=history.data;
   return <div className="studio-visualBody">
     {data.cover&&<article><h3>Current project cover · saved revision {data.cover.revision}</h3><VisualImage key={data.cover.artifact_id} project={project} job={data.cover.job_id} artifact={data.cover.artifact_id} alt="Saved project cover" /></article>}
-    <VisualPromptForm prompt={prompt} setPrompt={setPrompt} preset={preset} setPreset={setPreset} operation={operation} setOperation={setOperation} source={source} setSource={setSource} frame={frame} setFrame={setFrame} video={video} images={data.items} pending={submission.isPending||data.items.some(j=>j.status==="queued"||j.status==="running")} onSubmit={()=>submission.mutate()} />
+    <VisualPromptForm prompt={prompt} setPrompt={setPrompt} preset={preset} setPreset={setPreset} operation={operation} setOperation={setOperation} source={selectedSource} setSource={value=>setSource(value===video?"current-video":value)} frame={frame} setFrame={setFrame} video={video} images={data.items} pending={submission.isPending||data.items.some(j=>j.status==="queued"||j.status==="running")} onSubmit={()=>submission.mutate()} />
     {submission.isError&&<p role="alert">{errorText(submission.error)} <button type="button" onClick={()=>void history.refetch()}>Refresh accepted requests</button></p>}
     {selection.isError&&<p role="alert">{errorText(selection.error)} <button type="button" onClick={()=>void history.refetch()}>Refresh cover</button></p>}
     <h3>Saved assets</h3>

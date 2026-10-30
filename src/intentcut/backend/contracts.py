@@ -16,6 +16,7 @@ PUBLIC_JOB_ERROR_CODES = frozenset(
         "invalid_ai_selection",
         "provider_unavailable",
         "invalid_transcript",
+        "caption_render_unsupported",
         "invalid_image_output",
         "image_outcome_unknown",
         "image_rate_limited",
