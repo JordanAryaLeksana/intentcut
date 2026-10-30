@@ -56,7 +56,7 @@ export type AIJobStatus = "queued" | "running" | "succeeded" | "failed";
 
 export type AIProgressStage =
   | "preparing_media"
-  | "extracting_windows"
+  | "extracting_audio" | "transcribing_audio" | "validating_transcript" | "extracting_windows"
   | "understanding_footage"
   | "selecting_story"
   | "revising_sequence"
@@ -86,6 +86,10 @@ export interface AIJob {
 
 /** Artifact kind remains a string until the backend literal/enum is confirmed. */
 export interface AIArtifact {
+  parent_artifact_id?: string;
+  parent_sha256?: string;
+  caption_set_id?: string;
+  caption_revision?: number;
   id: string;
   kind: string;
   size_bytes: number;

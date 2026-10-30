@@ -75,9 +75,19 @@ def create_artifact_router(service: AIJobService) -> APIRouter:
         response_model_exclude_none=True,
     )
     def list_artifacts(project_id: UUID, job_id: UUID) -> AIJobArtifactListResponse:
+        job = service.get(project_id, job_id)
+        lineage = (
+            {
+                "caption_set_id": job.request_payload["caption_set_id"],
+                "caption_revision": job.request_payload["caption_revision"],
+            }
+            if job.request_payload.get("pipeline_version") == "caption_burn_v1"
+            else {}
+        )
         return AIJobArtifactListResponse(
             items=[
                 AIJobArtifactResponse(
+                    **lineage,
                     id=artifact.id,
                     kind=artifact.kind,
                     size_bytes=artifact.size_bytes,

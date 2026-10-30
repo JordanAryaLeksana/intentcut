@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { CaptionsPanel } from "./captions/captions-panel";
 import { AIDirector } from "./ai-director/ai-director";
 import { useProjectMedia } from "./media/hooks/use-project-media";
 import { useSelectedMediaIds } from "./store/use-editor-store";
@@ -8,14 +9,14 @@ import { useDraftStore } from "./store/use-draft-store";
 import { DraftControls } from "./draft-timeline";
 import { formatBytes } from "./media/selection";
 
-type DockTab = "director" | "inspector";
-const TABS: DockTab[] = ["director", "inspector"];
+type DockTab = "director" | "inspector" | "captions";
+const TABS: DockTab[] = ["director", "inspector", "captions"];
 
 export function dockTabForKey(current: DockTab, key: string): DockTab | null {
   if (key === "Home") return TABS[0];
   if (key === "End") return TABS[TABS.length - 1];
   if (key === "ArrowRight" || key === "ArrowLeft") {
-    return TABS[(TABS.indexOf(current) + 1) % TABS.length];
+    return TABS[(TABS.indexOf(current) + (key === "ArrowLeft" ? TABS.length - 1 : 1)) % TABS.length];
   }
   return null;
 }
@@ -112,7 +113,7 @@ export function StudioDock({ projectId }: { projectId?: string }) {
               buttons.current[next]?.focus();
             }}
           >
-            {tab === "director" ? "AI Story Director" : "Inspector"}
+            {tab === "director" ? "AI Story Director" : tab === "inspector" ? "Inspector" : "Captions"}
           </button>
         ))}
       </div>
@@ -126,6 +127,9 @@ export function StudioDock({ projectId }: { projectId?: string }) {
         <div className="studio-inspectorBody">
           {projectId ? <CutInspector key={projectId} projectId={projectId} /> : <p>Open a project to inspect its saved footage.</p>}
         </div>
+      </div>
+      <div className="studio-dockPanel" id="dock-panel-captions" role="tabpanel" aria-labelledby="dock-tab-captions" tabIndex={0} hidden={active !== "captions"}>
+        <CaptionsPanel projectId={projectId} />
       </div>
     </aside>
   );

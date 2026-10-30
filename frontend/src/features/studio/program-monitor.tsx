@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useCaptionStore } from "./captions/store";
 import { RenderVersionPicker } from "./draft-persistence";
 import { usePreviewJob } from "./use-editing";
 import { draftMatchesSaved, useDraftStore } from "./store/use-draft-store";
@@ -80,7 +81,7 @@ function RenderedMonitor({
   }
 
   const video = artifacts.data.items.find(
-    (artifact) => artifact.kind === "video",
+    (artifact) => artifact.kind === "video" || artifact.kind === "rendition",
   );
 
   if (!video) {
@@ -167,7 +168,9 @@ function ConnectedProgramMonitor({
 }: {
   projectId: string;
 }) {
-  const { jobId } = usePreviewJob(projectId);
+  const { jobId: baseJobId } = usePreviewJob(projectId);
+  const captioned = useCaptionStore(state=>state.previews[projectId]);
+  const jobId = captioned?.jobId ?? baseJobId;
 
   if (!jobId) {
     return (
@@ -185,10 +188,12 @@ function ConnectedProgramMonitor({
 }
 
 function DraftPreviewNotice({ projectId }: { projectId: string }) {
+  const captioned = useCaptionStore(state=>state.previews[projectId]);
   const draft = useDraftStore((state) => state.byProject[projectId]);
   const saved = useDraftStore((state) => state.savedByProject[projectId]);
   const {manual} = usePreviewJob(projectId);
   const matches = draft && saved && draftMatchesSaved(draft,saved) && manual?.revision === saved.revision && manual.status === "succeeded";
+  if (captioned) return <span>{captioned.label} · Published rendition</span>;
   return <span>{manual ? `Draft revision ${manual.revision} · ${manual.status}` : "Original AI MP4"} · {matches ? "Matches saved draft" : "Current edits may differ from preview"}</span>;
 }
 

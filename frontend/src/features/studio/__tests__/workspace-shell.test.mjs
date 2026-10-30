@@ -21,10 +21,10 @@ test("dock exposes labelled tabs and keeps the inactive panel mounted and hidden
 
 test("dock keyboard navigation wraps and supports Home and End", () => {
   assert.equal(dockTabForKey("director", "ArrowRight"), "inspector");
-  assert.equal(dockTabForKey("inspector", "ArrowRight"), "director");
-  assert.equal(dockTabForKey("director", "ArrowLeft"), "inspector");
+  assert.equal(dockTabForKey("inspector", "ArrowRight"), "captions");
+  assert.equal(dockTabForKey("director", "ArrowLeft"), "captions");
   assert.equal(dockTabForKey("inspector", "Home"), "director");
-  assert.equal(dockTabForKey("director", "End"), "inspector");
+  assert.equal(dockTabForKey("director", "End"), "captions");
   assert.equal(dockTabForKey("director", "Tab"), null);
 });
 

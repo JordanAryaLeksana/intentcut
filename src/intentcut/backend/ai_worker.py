@@ -11,7 +11,9 @@ from intentcut.backend.artifacts.derived import (
     DERIVED_RESULT_TYPES,
     CaptionArtifactResult,
     DerivedResult,
+    VideoRenditionResult,
 )
+from intentcut.backend.captions.processor import CaptionBurnProcessor
 from intentcut.backend.contracts import (
     AIProcessingError,
     JobLeaseLost,
@@ -76,6 +78,10 @@ class AIJobWorker:
                         JobType.CAPTION_TRANSCRIBE, processor, CaptionArtifactResult
                     )
                 ]
+            )
+        elif isinstance(processor, CaptionBurnProcessor):
+            processor = JobDispatcher(
+                [JobRegistration(JobType.CAPTION_BURN, processor, VideoRenditionResult)]
             )
         if isinstance(processor, JobDispatcher) and (
             allow_artifact_free_processor

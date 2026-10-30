@@ -171,6 +171,11 @@ def test_cli_registry_matches_recovery_and_executes_correct_handlers(
     database, storage = Mock(), Mock()
     media = ProcessingResult(Path("storyboard.json"), Path("video.mp4"))
     proposal = ProposalResult({})
+    from intentcut.backend.artifacts.derived import ArtifactParent, VideoRenditionResult
+
+    rendition = VideoRenditionResult(
+        Path("captioned.mp4"), ArtifactParent(uuid4(), "a" * 64)
+    )
 
     def handler(name, result):
         def run(job):
@@ -184,6 +189,7 @@ def test_cli_registry_matches_recovery_and_executes_correct_handlers(
     manual = handler("manual", media)
     first_cut = handler("first-cut", media)
     revision = handler("revision", proposal)
+    captions = handler("captions", rendition)
 
     @contextmanager
     def client(**kwargs):
@@ -199,7 +205,7 @@ def test_cli_registry_matches_recovery_and_executes_correct_handlers(
         expected = (
             ("manual_v1",)
             if manual_only
-            else ("manual_v1", "uploaded_v1", "revision_v1")
+            else ("manual_v1", "caption_burn_v1", "uploaded_v1", "revision_v1")
         )
         assert dispatcher.supported_job_types == expected
 
@@ -218,7 +224,13 @@ def test_cli_registry_matches_recovery_and_executes_correct_handlers(
                         request_payload={"pipeline_version": kind},
                     )
                 )
-                assert result is (proposal if kind == "revision_v1" else media)
+                assert result is (
+                    proposal
+                    if kind == "revision_v1"
+                    else rendition
+                    if kind == "caption_burn_v1"
+                    else media
+                )
             return False
 
         return Mock(process_one=process)
@@ -231,6 +243,7 @@ def test_cli_registry_matches_recovery_and_executes_correct_handlers(
     monkeypatch.setattr(worker_cli, "RealAIProcessingAdapter", lambda **kw: first_cut)
     monkeypatch.setattr(worker_cli, "ManualRenderProcessor", lambda *args: manual)
     monkeypatch.setattr(worker_cli, "RevisionProcessor", lambda *args: revision)
+    monkeypatch.setattr(worker_cli, "CaptionBurnProcessor", lambda *args: captions)
     monkeypatch.setattr(worker_cli, "AIJobWorker", worker_factory)
     configured = settings.model_copy(update={"model_api_key": SecretStr("fake-only")})
     assert worker_cli.run_worker(configured, manual_only=manual_only) == 0
@@ -239,6 +252,7 @@ def test_cli_registry_matches_recovery_and_executes_correct_handlers(
         if manual_only
         else [
             ("manual", "manual_v1"),
+            ("captions", "caption_burn_v1"),
             ("first-cut", "uploaded_v1"),
             ("revision", "revision_v1"),
         ]
@@ -287,3 +301,26 @@ def test_voice_only_requires_explicit_enablement(settings, monkeypatch):
     connect.assert_not_called()
     with pytest.raises(SystemExit):
         worker_cli.main(["--voice-only", "--manual-only"])
+
+
+def test_captions_only_is_provider_free(settings, monkeypatch):
+    database, storage, worker = Mock(), Mock(), Mock()
+    worker.process_one.return_value = False
+    registered = []
+
+    def construct(db, dispatcher, **kwargs):
+        registered.append(dispatcher.supported_job_types)
+        return worker
+
+    monkeypatch.setattr(worker_cli.Database, "connect", lambda _: database)
+    monkeypatch.setattr(worker_cli, "LocalMediaStorage", lambda *a: storage)
+    monkeypatch.setattr(worker_cli, "AIJobWorker", construct)
+    monkeypatch.setattr(
+        worker_cli, "OpenAI", Mock(side_effect=AssertionError("No provider"))
+    )
+    monkeypatch.setattr(
+        worker_cli, "MuseVoiceClient", Mock(side_effect=AssertionError("No Voice"))
+    )
+    assert worker_cli.run_worker(settings, captions_only=True) == 0
+    assert registered == [("caption_burn_v1",)]
+    database.close.assert_called_once()

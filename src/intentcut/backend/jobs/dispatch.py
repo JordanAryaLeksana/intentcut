@@ -36,6 +36,7 @@ class JobType(StrEnum):
     SEQUENCE_REVISION = "revision_v1"
     CAPTION_ARTIFACT = "caption_artifact_v1"
     CAPTION_TRANSCRIBE = "caption_transcribe_v1"
+    CAPTION_BURN = "caption_burn_v1"
     IMAGE_ARTIFACT = "image_artifact_v1"
     VIDEO_RENDITION = "video_rendition_v1"
 
@@ -46,6 +47,7 @@ _EXPECTED_RESULTS: dict[JobType, JobResultType] = {
     JobType.SEQUENCE_REVISION: ProposalResult,
     JobType.CAPTION_ARTIFACT: CaptionArtifactResult,
     JobType.CAPTION_TRANSCRIBE: CaptionArtifactResult,
+    JobType.CAPTION_BURN: VideoRenditionResult,
     JobType.IMAGE_ARTIFACT: ImageArtifactResult,
     JobType.VIDEO_RENDITION: VideoRenditionResult,
 }

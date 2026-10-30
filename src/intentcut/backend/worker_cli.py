@@ -12,7 +12,11 @@ from intentcut.backend.ai_artifacts import AIArtifactPublisher
 from intentcut.backend.ai_job_service import AIJobService
 from intentcut.backend.ai_processing_adapter import RealAIProcessingAdapter
 from intentcut.backend.ai_worker import AIJobWorker
-from intentcut.backend.artifacts.derived import CaptionArtifactResult
+from intentcut.backend.artifacts.derived import (
+    CaptionArtifactResult,
+    VideoRenditionResult,
+)
+from intentcut.backend.captions.processor import CaptionBurnProcessor
 from intentcut.backend.contracts import ProcessingResult, ProposalResult
 from intentcut.backend.editing.processor import ManualRenderProcessor
 from intentcut.backend.editing.revisions import RevisionProcessor
@@ -36,12 +40,18 @@ def run_worker(
     job_id: UUID | None = None,
     manual_only: bool = False,
     voice_only: bool = False,
+    captions_only: bool = False,
 ) -> int:
-    if manual_only and voice_only:
+    if sum((manual_only, voice_only, captions_only)) > 1:
         raise ValueError("Worker modes are mutually exclusive")
     if voice_only and not transcription_available(settings):
         raise ValueError("Voice transcription is not configured")
-    if not manual_only and not voice_only and not processing_available(settings):
+    if (
+        not manual_only
+        and not voice_only
+        and not captions_only
+        and not processing_available(settings)
+    ):
         raise ValueError("Uploaded-media processing is not configured")
     if not 1 <= max_jobs <= 100 or not 1 <= max_attempts <= 3:
         raise ValueError("Invalid worker budget")
@@ -58,7 +68,7 @@ def run_worker(
         storage.initialize()
         context = (
             nullcontext(None)
-            if manual_only or voice_only
+            if manual_only or voice_only or captions_only
             else OpenAI(
                 base_url="https://api.meta.ai/v1",
                 api_key=settings.model_api_key.get_secret_value(),
@@ -69,7 +79,7 @@ def run_worker(
         with context as client:
             ai_processor = (
                 None
-                if manual_only or voice_only
+                if manual_only or voice_only or captions_only
                 else RealAIProcessingAdapter(
                     database=database,
                     storage=storage,
@@ -80,7 +90,7 @@ def run_worker(
             manual_processor = ManualRenderProcessor(database, storage, settings)
             revision_processor = (
                 None
-                if manual_only or voice_only
+                if manual_only or voice_only or captions_only
                 else RevisionProcessor(
                     EditingService(AIJobService(database, storage, settings)),
                     MuseClient(client),
@@ -89,14 +99,26 @@ def run_worker(
 
             registrations = (
                 []
-                if voice_only
+                if voice_only or captions_only
                 else [
                     JobRegistration(
                         JobType.MANUAL_RENDER, manual_processor, ProcessingResult
                     )
                 ]
             )
-            if not manual_only and transcription_available(settings):
+            if not voice_only and not manual_only:
+                registrations.append(
+                    JobRegistration(
+                        JobType.CAPTION_BURN,
+                        CaptionBurnProcessor(AIJobService(database, storage, settings)),
+                        VideoRenditionResult,
+                    )
+                )
+            if (
+                not manual_only
+                and not captions_only
+                and transcription_available(settings)
+            ):
                 voice = MuseVoiceClient(
                     settings.model_api_key, timeout=settings.voice_timeout_seconds
                 )
@@ -173,6 +195,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Transcribe without initializing Muse Spark",
     )
+    modes.add_argument(
+        "--captions-only",
+        action="store_true",
+        help="Burn saved captions without any AI provider",
+    )
     parser.add_argument("--max-jobs", type=int, choices=range(1, 101), default=1)
     parser.add_argument("--max-attempts", type=int, choices=(1, 2, 3), default=1)
     parser.add_argument("--job-id", type=UUID, help="Claim only this queued job")
@@ -197,6 +224,7 @@ def main(argv: list[str] | None = None) -> int:
             continuous=args.continuous,
             manual_only=args.manual_only,
             voice_only=args.voice_only,
+            captions_only=args.captions_only,
             poll_seconds=args.poll_seconds,
         )
         print(
