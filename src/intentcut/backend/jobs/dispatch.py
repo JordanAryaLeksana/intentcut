@@ -38,6 +38,7 @@ class JobType(StrEnum):
     CAPTION_TRANSCRIBE = "caption_transcribe_v1"
     CAPTION_BURN = "caption_burn_v1"
     IMAGE_ARTIFACT = "image_artifact_v1"
+    IMAGE_GENERATE = "image_generate_v1"
     VIDEO_RENDITION = "video_rendition_v1"
 
 
@@ -49,6 +50,7 @@ _EXPECTED_RESULTS: dict[JobType, JobResultType] = {
     JobType.CAPTION_TRANSCRIBE: CaptionArtifactResult,
     JobType.CAPTION_BURN: VideoRenditionResult,
     JobType.IMAGE_ARTIFACT: ImageArtifactResult,
+    JobType.IMAGE_GENERATE: ImageArtifactResult,
     JobType.VIDEO_RENDITION: VideoRenditionResult,
 }
 

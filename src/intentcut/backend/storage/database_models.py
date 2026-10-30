@@ -350,3 +350,20 @@ Index(
     postgresql_where=AIJob.request_payload["pipeline_version"].astext
     == "caption_burn_v1",
 )
+
+
+class ProjectCover(Base):
+    __tablename__ = "project_covers"
+    __table_args__ = (
+        CheckConstraint("revision > 0", name="project_cover_revision"),
+        CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="project_cover_hash"),
+    )
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), primary_key=True
+    )
+    artifact_id: Mapped[UUID] = mapped_column(
+        ForeignKey("ai_job_artifacts.id", ondelete="RESTRICT")
+    )
+    job_id: Mapped[UUID] = mapped_column(ForeignKey("ai_jobs.id", ondelete="RESTRICT"))
+    sha256: Mapped[str] = mapped_column(String(64))
+    revision: Mapped[int] = mapped_column(Integer)

@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ProgressStage = Literal[
     "preparing_media",
+    "generating_image",
+    "validating_image",
     "extracting_windows",
     "extracting_audio",
     "transcribing_audio",
@@ -20,6 +22,8 @@ ProgressStage = Literal[
 
 STAGES: tuple[ProgressStage, ...] = (
     "preparing_media",
+    "generating_image",
+    "validating_image",
     "extracting_windows",
     "extracting_audio",
     "transcribing_audio",

@@ -324,3 +324,62 @@ def test_captions_only_is_provider_free(settings, monkeypatch):
     assert worker_cli.run_worker(settings, captions_only=True) == 0
     assert registered == [("caption_burn_v1",)]
     database.close.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "mode,expected",
+    [
+        ("manual_only", "manual_v1"),
+        ("voice_only", "caption_transcribe_v1"),
+        ("captions_only", "caption_burn_v1"),
+        ("image_only", "image_generate_v1"),
+    ],
+)
+def test_combined_feature_workers_remain_isolated(
+    settings, monkeypatch, mode, expected
+):
+    database, storage, worker = Mock(), Mock(), Mock()
+    worker.process_one.return_value = False
+    captured = []
+
+    def construct(db, dispatcher, **kwargs):
+        captured.append(dispatcher.supported_job_types)
+        return worker
+
+    monkeypatch.setattr(worker_cli.Database, "connect", lambda _: database)
+    monkeypatch.setattr(worker_cli, "LocalMediaStorage", lambda *a: storage)
+    monkeypatch.setattr(worker_cli, "AIJobWorker", construct)
+    monkeypatch.setattr(worker_cli, "transcription_available", lambda _: True)
+    monkeypatch.setattr(worker_cli, "image_available", lambda _: True)
+    spark = Mock(side_effect=AssertionError("Spark must not initialize"))
+    voice, image = Mock(), Mock()
+    monkeypatch.setattr(worker_cli, "OpenAI", spark)
+    monkeypatch.setattr(worker_cli, "MuseVoiceClient", voice)
+    monkeypatch.setattr(worker_cli, "MuseImageClient", image)
+    assert worker_cli.run_worker(settings, **{mode: True}) == 0
+    assert captured == [(expected,)]
+    assert voice.call_count == (mode == "voice_only")
+    assert image.call_count == (mode == "image_only")
+    spark.assert_not_called()
+    assert database.recover_expired_ai_job.call_args.kwargs["supported_job_types"] == (
+        expected,
+    )
+
+
+@pytest.mark.parametrize(
+    "modes",
+    [
+        ("manual_only", "voice_only"),
+        ("manual_only", "captions_only"),
+        ("manual_only", "image_only"),
+        ("voice_only", "captions_only"),
+        ("voice_only", "image_only"),
+        ("captions_only", "image_only"),
+    ],
+)
+def test_combined_worker_modes_cannot_be_mixed(settings, monkeypatch, modes):
+    connect = Mock()
+    monkeypatch.setattr(worker_cli.Database, "connect", connect)
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        worker_cli.run_worker(settings, **dict.fromkeys(modes, True))
+    connect.assert_not_called()

@@ -1,0 +1,36 @@
+import test,{afterEach} from "node:test";
+import assert from "node:assert/strict";
+import {createElement} from "react";
+import {renderToStaticMarkup} from "react-dom/server";
+import {parseVisualHistory,getVisualHistory,submitVisual,setProjectCover} from "../../../lib/api/visuals.ts";
+import {VisualPromptForm,visualPolling,VisualsPanel} from "../visuals/visuals-panel.tsx";
+import {parseJobProgress} from "../../../lib/api/job-progress.ts";
+const project="f93aa0e0-4ada-463c-a7c5-086ddeecd4b9",job="44c3fa22-3ee4-43ec-a476-3e99172c9af2",artifact="b43e8613-09a4-4187-98f1-ad23d5653c09",other="74ba6cdb-a3e5-4e7a-a147-860fcfed31b7";
+const item={id:job,status:"succeeded",error_code:null,preset:"cover",operation:"generate",model:"muse-image-1.0",source_artifact_id:null,source_sha256:null,frame_seconds:null,artifact_id:artifact,size_bytes:100};
+const cover={artifact_id:artifact,job_id:job,sha256:"a".repeat(64),revision:2};
+const original=globalThis.fetch;afterEach(()=>{globalThis.fetch=original;});
+function reset(){process.env.NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:8000";}
+test("saved image history/current cover recover",()=>{const value=parseVisualHistory({items:[item],cover});assert.deepEqual(value.cover,cover);assert.equal(value.items[0].artifact_id,artifact);});
+test("invalid model or fabricated references rejected",()=>{for(const patch of [{model:"fake"},{artifact_id:"https://bad.test"},{status:"complete"},{size_bytes:-1},{frame_seconds:NaN}])assert.throws(()=>parseVisualHistory({items:[{...item,...patch}],cover:null}));assert.throws(()=>parseVisualHistory({items:[],cover:{...cover,revision:0}}));});
+test("active polling stops on terminal states",()=>{for(const status of ["queued","running"])assert.equal(visualPolling({items:[{...item,status}],cover:null}),2000);for(const status of ["succeeded","failed"])assert.equal(visualPolling({items:[{...item,status}],cover:null}),false);});
+test("image progress has no fake counts",()=>{for(const stage of ["generating_image","validating_image"]){const value=parseJobProgress({stage,stage_started_at:"2026-10-30T00:00:00Z",updated_at:"2026-10-30T00:00:00Z"});assert.equal(value.stage,stage);assert.equal(value.total_windows,undefined);assert.equal(value.percent,undefined);}});
+test("submission/cover use exact project contracts",async()=>{reset();const calls=[];globalThis.fetch=async(url,options={})=>{calls.push({url,...options});return Response.json(options.method==="POST"?{id:job}:options.method==="PUT"?cover:{items:[item],cover});};assert.equal((await getVisualHistory(project)).cover.revision,2);assert.equal(await submitVisual(project,{request_id:job,prompt:"Fixture",preset:"cover",operation:"generate"}),job);await setProjectCover(project,artifact,1);assert.ok(calls.every(c=>c.url.includes(`/projects/${project}/ai-jobs/visuals`)));assert.deepEqual(JSON.parse(calls[2].body),{artifact_id:artifact,expected_revision:1});assert.equal(calls.filter(c=>c.method==="POST").length,1);});
+test("edit sends IDs/frame, never URLs or paths",async()=>{reset();let body;globalThis.fetch=async(url,options)=>{body=JSON.parse(options.body);return Response.json({id:job});};await submitVisual(project,{request_id:job,prompt:"Edit",preset:"thumbnail",operation:"edit",source_artifact_id:artifact,frame_seconds:.5});assert.equal(body.source_artifact_id,artifact);assert.equal(body.frame_seconds,.5);assert.equal(body.source_path,undefined);assert.equal(body.image_url,undefined);});
+test("409 cover conflict does not retry",async()=>{reset();let calls=0;globalThis.fetch=async()=>{calls++;return Response.json({code:"cover_conflict",message:"Changed"},{status:409});};await assert.rejects(()=>setProjectCover(project,artifact,1),e=>e.status===409);assert.equal(calls,1);});
+test("project isolation uses separate routes",async()=>{reset();const urls=[];globalThis.fetch=async(url)=>{urls.push(url);return Response.json({items:[],cover:null});};await getVisualHistory(project);await getVisualHistory(other);assert.notEqual(urls[0],urls[1]);});
+test("accessible form shows actual supported controls",()=>{const html=renderToStaticMarkup(createElement(VisualPromptForm,{prompt:"Hello",setPrompt:()=>{},preset:"cover",setPreset:()=>{},operation:"edit",setOperation:()=>{},source:artifact,setSource:()=>{},frame:"0.5",setFrame:()=>{},video:artifact,images:[],pending:false,onSubmit:()=>{}}));assert.match(html,/Image instruction/);assert.match(html,/Frame position/);assert.match(html,/Request image edit/);assert.match(html,/actual generated pixel dimensions are model-dependent/);assert.match(html,/not video title cards/);assert.match(html,/paid Muse Image credits/);});
+test("empty project preview submits nothing",()=>{assert.match(renderToStaticMarkup(createElement(VisualsPanel)),/Open a project/);});
+
+
+test("frame reference follows the exact monitor rendition and rejects stale metadata",async()=>{
+  const {monitorVideo,visualReference}=await import("../monitor-video.ts");
+  const original={id:artifact,kind:"video",size_bytes:100,sha256:"a".repeat(64)};
+  const captioned={...original,id:other,kind:"rendition"};
+  assert.equal(monitorVideo([original,captioned])?.id,artifact);
+  assert.equal(monitorVideo([original,captioned],other)?.id,other);
+  assert.equal(monitorVideo([original],other),undefined);
+  assert.equal(monitorVideo([{...captioned,kind:"image"}],other),undefined);
+  assert.equal(visualReference("current-video",other),other);
+  assert.equal(visualReference("current-video"),"");
+  assert.equal(visualReference(artifact,other),artifact);
+});

@@ -6,6 +6,8 @@ export interface ObservedJob extends AIJob {
 }
 
 export const STAGE_COPY: Record<AIProgressStage, { title: string; description: string }> = {
+  generating_image: {title:"Generating image", description:"Muse Image is processing the instruction."},
+  validating_image: {title:"Validating image", description:"Checking the output encoding and decoded dimensions."},
   preparing_media: { title: "Preparing media", description: "Checking the selected footage and verifying source files." },
   extracting_audio: { title: "Extracting audio", description: "Preparing the full video audio timeline." },
   transcribing_audio: { title: "Transcribing audio", description: "Muse Voice is processing the audio." },

@@ -11,6 +11,7 @@ from intentcut.backend.artifacts.derived import (
     DERIVED_RESULT_TYPES,
     CaptionArtifactResult,
     DerivedResult,
+    ImageArtifactResult,
     VideoRenditionResult,
 )
 from intentcut.backend.captions.processor import CaptionBurnProcessor
@@ -26,6 +27,7 @@ from intentcut.backend.jobs.dispatch import JobDispatcher, JobRegistration, JobT
 from intentcut.backend.storage.database import CommitOutcomeUnknown, Database
 from intentcut.backend.storage.database_models import AIJob
 from intentcut.backend.transcription.processor import TranscriptionProcessor
+from intentcut.backend.visuals.processor import VisualProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +84,14 @@ class AIJobWorker:
         elif isinstance(processor, CaptionBurnProcessor):
             processor = JobDispatcher(
                 [JobRegistration(JobType.CAPTION_BURN, processor, VideoRenditionResult)]
+            )
+        elif isinstance(processor, VisualProcessor):
+            processor = JobDispatcher(
+                [
+                    JobRegistration(
+                        JobType.IMAGE_GENERATE, processor, ImageArtifactResult
+                    )
+                ]
             )
         if isinstance(processor, JobDispatcher) and (
             allow_artifact_free_processor

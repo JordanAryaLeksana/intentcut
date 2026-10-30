@@ -55,6 +55,7 @@ export interface AIJobAccepted {
 export type AIJobStatus = "queued" | "running" | "succeeded" | "failed";
 
 export type AIProgressStage =
+  | "generating_image" | "validating_image"
   | "preparing_media"
   | "extracting_audio" | "transcribing_audio" | "validating_transcript" | "extracting_windows"
   | "understanding_footage"

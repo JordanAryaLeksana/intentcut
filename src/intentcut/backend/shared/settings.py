@@ -21,6 +21,9 @@ class BackendSettings(BaseSettings):
     ai_jobs_local_enabled: bool = False
     ai_jobs_browser_enabled: bool = False
     ai_processing_enabled: bool = False
+    image_generation_enabled: bool = False
+    image_max_jobs_per_project: int = Field(default=3, ge=1, le=20)
+    image_timeout_seconds: float = Field(default=240, ge=1, le=600)
     voice_transcription_enabled: bool = False
     voice_max_duration_seconds: int = Field(default=120, ge=1, le=600)
     voice_max_jobs_per_project: int = Field(default=3, ge=1, le=20)

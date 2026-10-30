@@ -1,6 +1,7 @@
 
 "use client";
 
+import { monitorVideo } from "./monitor-video";
 import { useCaptionStore } from "./captions/store";
 import { RenderVersionPicker } from "./draft-persistence";
 import { usePreviewJob } from "./use-editing";
@@ -57,6 +58,7 @@ function RenderedMonitor({
   jobId: string;
 }) {
   const artifacts = useAIArtifacts(projectId, jobId);
+  const selected = useCaptionStore(state=>state.previews[projectId]);
 
   if (artifacts.isPending) {
     return <MonitorPlaceholder message="Loading rendered video metadata..." />;
@@ -80,9 +82,7 @@ function RenderedMonitor({
     );
   }
 
-  const video = artifacts.data.items.find(
-    (artifact) => artifact.kind === "video" || artifact.kind === "rendition",
-  );
+  const video = monitorVideo(artifacts.data.items, selected?.jobId === jobId ? selected.artifactId : undefined);
 
   if (!video) {
     return (

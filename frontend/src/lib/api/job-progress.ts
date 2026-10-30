@@ -2,6 +2,7 @@ import type { AIJobProgress, AIProgressStage } from "./contracts";
 import { ApiError, isRecord } from "./transport";
 
 export const PROGRESS_STAGES: readonly AIProgressStage[] = [
+  "generating_image", "validating_image",
   "preparing_media", "extracting_audio", "transcribing_audio", "validating_transcript", "extracting_windows", "understanding_footage",
   "selecting_story", "revising_sequence", "rendering_video", "publishing_artifacts",
 ];

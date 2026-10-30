@@ -18,6 +18,7 @@ DERIVED_PIPELINES = {
     "caption_transcribe_v1": "captions",
     "caption_burn_v1": "rendition",
     "image_artifact_v1": "image",
+    "image_generate_v1": "image",
     "video_rendition_v1": "rendition",
 }
 CONTENT_TYPES = {

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from openai import OpenAI
 
+from intentcut.ai.image import MuseImageClient
 from intentcut.ai.muse import MuseClient
 from intentcut.ai.voice import MuseVoiceClient
 from intentcut.backend.ai_artifacts import AIArtifactPublisher
@@ -14,6 +15,7 @@ from intentcut.backend.ai_processing_adapter import RealAIProcessingAdapter
 from intentcut.backend.ai_worker import AIJobWorker
 from intentcut.backend.artifacts.derived import (
     CaptionArtifactResult,
+    ImageArtifactResult,
     VideoRenditionResult,
 )
 from intentcut.backend.captions.processor import CaptionBurnProcessor
@@ -28,6 +30,8 @@ from intentcut.backend.storage.database import Database
 from intentcut.backend.storage.local_media_storage import LocalMediaStorage
 from intentcut.backend.transcription.processor import TranscriptionProcessor
 from intentcut.backend.transcription.service import transcription_available
+from intentcut.backend.visuals.processor import VisualProcessor
+from intentcut.backend.visuals.service import image_available
 
 
 def run_worker(
@@ -41,15 +45,19 @@ def run_worker(
     manual_only: bool = False,
     voice_only: bool = False,
     captions_only: bool = False,
+    image_only: bool = False,
 ) -> int:
-    if sum((manual_only, voice_only, captions_only)) > 1:
+    if sum((manual_only, voice_only, captions_only, image_only)) > 1:
         raise ValueError("Worker modes are mutually exclusive")
+    if image_only and not image_available(settings):
+        raise ValueError("Muse Image is not configured")
     if voice_only and not transcription_available(settings):
         raise ValueError("Voice transcription is not configured")
     if (
         not manual_only
         and not voice_only
         and not captions_only
+        and not image_only
         and not processing_available(settings)
     ):
         raise ValueError("Uploaded-media processing is not configured")
@@ -68,7 +76,7 @@ def run_worker(
         storage.initialize()
         context = (
             nullcontext(None)
-            if manual_only or voice_only or captions_only
+            if manual_only or voice_only or captions_only or image_only
             else OpenAI(
                 base_url="https://api.meta.ai/v1",
                 api_key=settings.model_api_key.get_secret_value(),
@@ -79,7 +87,7 @@ def run_worker(
         with context as client:
             ai_processor = (
                 None
-                if manual_only or voice_only or captions_only
+                if manual_only or voice_only or captions_only or image_only
                 else RealAIProcessingAdapter(
                     database=database,
                     storage=storage,
@@ -90,7 +98,7 @@ def run_worker(
             manual_processor = ManualRenderProcessor(database, storage, settings)
             revision_processor = (
                 None
-                if manual_only or voice_only or captions_only
+                if manual_only or voice_only or captions_only or image_only
                 else RevisionProcessor(
                     EditingService(AIJobService(database, storage, settings)),
                     MuseClient(client),
@@ -99,14 +107,14 @@ def run_worker(
 
             registrations = (
                 []
-                if voice_only or captions_only
+                if voice_only or captions_only or image_only
                 else [
                     JobRegistration(
                         JobType.MANUAL_RENDER, manual_processor, ProcessingResult
                     )
                 ]
             )
-            if not voice_only and not manual_only:
+            if not voice_only and not manual_only and not image_only:
                 registrations.append(
                     JobRegistration(
                         JobType.CAPTION_BURN,
@@ -116,7 +124,27 @@ def run_worker(
                 )
             if (
                 not manual_only
+                and not voice_only
                 and not captions_only
+                and image_available(settings)
+            ):
+                registrations.append(
+                    JobRegistration(
+                        JobType.IMAGE_GENERATE,
+                        VisualProcessor(
+                            AIJobService(database, storage, settings),
+                            MuseImageClient(
+                                settings.model_api_key,
+                                timeout=settings.image_timeout_seconds,
+                            ),
+                        ),
+                        ImageArtifactResult,
+                    )
+                )
+            if (
+                not manual_only
+                and not captions_only
+                and not image_only
                 and transcription_available(settings)
             ):
                 voice = MuseVoiceClient(
@@ -200,6 +228,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Burn saved captions without any AI provider",
     )
+    modes.add_argument(
+        "--image-only",
+        action="store_true",
+        help="Generate/edit images without initializing Muse Spark",
+    )
     parser.add_argument("--max-jobs", type=int, choices=range(1, 101), default=1)
     parser.add_argument("--max-attempts", type=int, choices=(1, 2, 3), default=1)
     parser.add_argument("--job-id", type=UUID, help="Claim only this queued job")
@@ -225,6 +258,7 @@ def main(argv: list[str] | None = None) -> int:
             manual_only=args.manual_only,
             voice_only=args.voice_only,
             captions_only=args.captions_only,
+            image_only=args.image_only,
             poll_seconds=args.poll_seconds,
         )
         print(
