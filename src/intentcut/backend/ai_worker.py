@@ -23,6 +23,7 @@ from intentcut.backend.contracts import (
 )
 from intentcut.backend.editing.processor import ManualRenderProcessor
 from intentcut.backend.editing.revisions import RevisionProcessor
+from intentcut.backend.highlights.adapter import HighlightProcessingAdapter
 from intentcut.backend.jobs.dispatch import JobDispatcher, JobRegistration, JobType
 from intentcut.backend.storage.database import CommitOutcomeUnknown, Database
 from intentcut.backend.storage.database_models import AIJob
@@ -57,7 +58,16 @@ class AIJobWorker:
             raise ValueError("Real processing requires artifact publication")
         # Preserve direct adapter construction used by existing callers, while
         # giving those production adapters the same capability fence as the CLI.
-        if isinstance(processor, RealAIProcessingAdapter):
+        # The highlight subclass must be fenced before its parent class.
+        if isinstance(processor, HighlightProcessingAdapter):
+            processor = JobDispatcher(
+                [
+                    JobRegistration(
+                        JobType.HIGHLIGHT_FIRST_CUT, processor, ProcessingResult
+                    )
+                ]
+            )
+        elif isinstance(processor, RealAIProcessingAdapter):
             processor = JobDispatcher(
                 [
                     JobRegistration(
