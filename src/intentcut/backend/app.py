@@ -19,6 +19,8 @@ from intentcut.backend.editing.revision_routes import create_revision_router
 from intentcut.backend.editing.revisions import RevisionService
 from intentcut.backend.editing.routes import create_editing_router
 from intentcut.backend.editing.service import EditingService
+from intentcut.backend.highlights.routes import create_highlight_router
+from intentcut.backend.highlights.service import HighlightService
 from intentcut.backend.jobs.routes import create_ai_job_router
 from intentcut.backend.media_ingestion.routes import create_media_router
 from intentcut.backend.media_ingestion.service import (
@@ -108,6 +110,7 @@ def create_app(
     app.include_router(create_transcription_router(TranscriptionService(ai_service)))
     app.include_router(create_artifact_router(ai_service))
     app.include_router(create_editing_router(EditingService(ai_service)))
+    app.include_router(create_highlight_router(HighlightService(ai_service)))
     app.include_router(
         create_revision_router(RevisionService(EditingService(ai_service)))
     )

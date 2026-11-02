@@ -8,10 +8,11 @@ import { useProjectMedia } from "./media/hooks/use-project-media";
 import { useSelectedMediaIds } from "./store/use-editor-store";
 import { useDraftStore } from "./store/use-draft-store";
 import { DraftControls } from "./draft-timeline";
+import { HighlightNavigator } from "./highlights/highlight-navigator";
 import { formatBytes } from "./media/selection";
 
-type DockTab = "director" | "inspector" | "captions" | "visuals";
-const TABS: DockTab[] = ["director", "inspector", "captions", "visuals"];
+type DockTab = "director" | "inspector" | "captions" | "visuals" | "highlights";
+const TABS: DockTab[] = ["director", "inspector", "captions", "visuals", "highlights"];
 
 export function dockTabForKey(current: DockTab, key: string): DockTab | null {
   if (key === "Home") return TABS[0];
@@ -114,7 +115,7 @@ export function StudioDock({ projectId }: { projectId?: string }) {
               buttons.current[next]?.focus();
             }}
           >
-            {tab === "director" ? "AI Story Director" : tab === "inspector" ? "Inspector" : tab === "captions" ? "Captions" : "AI Visuals"}
+            {tab === "director" ? "AI Story Director" : tab === "inspector" ? "Inspector" : tab === "captions" ? "Captions" : tab === "visuals" ? "AI Visuals" : "Highlights"}
           </button>
         ))}
       </div>
@@ -133,6 +134,9 @@ export function StudioDock({ projectId }: { projectId?: string }) {
         <CaptionsPanel projectId={projectId} />
       </div>
       <div className="studio-dockPanel" id="dock-panel-visuals" role="tabpanel" aria-labelledby="dock-tab-visuals" tabIndex={0} hidden={active!=="visuals"}><VisualsPanel projectId={projectId}/></div>
+      <div className="studio-dockPanel" id="dock-panel-highlights" role="tabpanel" aria-labelledby="dock-tab-highlights" tabIndex={0} hidden={active !== "highlights"}>
+        <HighlightNavigator projectId={projectId} />
+      </div>
     </aside>
   );
 }

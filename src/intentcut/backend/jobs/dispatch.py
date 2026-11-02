@@ -32,6 +32,7 @@ JobResultType = (
 
 class JobType(StrEnum):
     UPLOADED_FIRST_CUT = "uploaded_v1"
+    HIGHLIGHT_FIRST_CUT = "highlight_v1"
     MANUAL_RENDER = "manual_v1"
     SEQUENCE_REVISION = "revision_v1"
     CAPTION_ARTIFACT = "caption_artifact_v1"
@@ -44,6 +45,7 @@ class JobType(StrEnum):
 
 _EXPECTED_RESULTS: dict[JobType, JobResultType] = {
     JobType.UPLOADED_FIRST_CUT: ProcessingResult,
+    JobType.HIGHLIGHT_FIRST_CUT: ProcessingResult,
     JobType.MANUAL_RENDER: ProcessingResult,
     JobType.SEQUENCE_REVISION: ProposalResult,
     JobType.CAPTION_ARTIFACT: CaptionArtifactResult,

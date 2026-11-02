@@ -1,0 +1,60 @@
+/* AI Highlight Navigator: additive dock panel reusing Studio tokens. */
+.highlight-navigator { display: flex; flex-direction: column; gap: 0; min-height: 0; }
+.highlight-navigator .studio-panelHeader { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.highlight-section { display: grid; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.highlight-section:last-child { border-bottom: 0; }
+.highlight-heading { font-size: 12px; font-weight: 600; margin: 0; }
+.highlight-label { font-size: 12px; font-weight: 500; }
+.highlight-navigator select,
+.highlight-navigator textarea,
+.highlight-navigator input[type="number"] {
+  width: 100%; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--background); color: var(--foreground);
+  padding: 8px 10px; font: inherit; font-size: 12px;
+}
+.highlight-navigator select:focus-visible,
+.highlight-navigator textarea:focus-visible,
+.highlight-navigator input:focus-visible,
+.highlight-navigator button:focus-visible {
+  outline: 2px solid var(--primary); outline-offset: 2px;
+}
+.highlight-sourceMeta { margin: 0; font-size: 11px; color: var(--muted-foreground); }
+.highlight-timeline { display: grid; gap: 4px; }
+.highlight-track {
+  position: relative; height: 28px; border: 1px solid var(--border);
+  border-radius: 4px; background: var(--background); overflow: hidden;
+}
+.highlight-marker {
+  position: absolute; top: 3px; bottom: 3px; min-width: 8px; padding: 0;
+  border: 1px solid var(--primary); border-radius: 2px; cursor: pointer;
+  background: color-mix(in srgb, var(--primary) 35%, transparent);
+}
+.highlight-marker.is-excluded { opacity: 0.35; border-style: dashed; }
+.highlight-marker.is-active { background: var(--primary); }
+.highlight-marker.is-ai { box-shadow: inset 0 -3px 0 var(--primary-foreground); }
+.highlight-scale { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted-foreground); }
+.highlight-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.highlight-list li { border: 1px solid transparent; border-radius: 4px; }
+.highlight-list li.is-active { border-color: var(--border); background: var(--background); }
+.highlight-listRow { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; }
+.highlight-listRow input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--primary); }
+.highlight-listButton {
+  flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px;
+  background: none; border: 0; color: var(--foreground); font: inherit;
+  font-size: 12px; cursor: pointer; text-align: left; padding: 2px;
+}
+.highlight-listButton strong { font-weight: 600; }
+.highlight-listButton span:last-child { margin-left: auto; color: var(--muted-foreground); font-size: 11px; white-space: nowrap; }
+.highlight-preview { width: 100%; aspect-ratio: 16 / 9; background: #080a0c; border: 1px solid var(--border); border-radius: 4px; }
+.highlight-facts { display: grid; gap: 8px; margin: 0; font-size: 12px; }
+.highlight-facts > div { display: grid; gap: 2px; }
+.highlight-facts dt { color: var(--muted-foreground); font-size: 11px; }
+.highlight-facts dd { margin: 0; }
+.highlight-mode { display: grid; gap: 6px; border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; margin: 0; font-size: 12px; }
+.highlight-mode legend { font-size: 11px; color: var(--muted-foreground); padding: 0 4px; }
+.highlight-mode label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.highlight-mode input[type="radio"] { accent-color: var(--primary); }
+.highlight-note { margin: 0; font-size: 11px; color: var(--muted-foreground); }
+@media (prefers-reduced-motion: reduce) {
+  .highlight-marker { transition: none; }
+}

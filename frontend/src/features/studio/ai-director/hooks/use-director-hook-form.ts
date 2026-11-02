@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError } from "@/lib/api/transport";
-import { readSavedJobId } from "../../store/job-recovery";
+import { readSavedJobId, writeSavedJobId } from "../../store/job-recovery";
 import { useProjectMedia } from "../../media/hooks/use-project-media";
 import { useSelectedMediaIds,useEditorStore, useActiveJobId } from "../../store/use-editor-store";
 import { useCreateAIJob } from "./use-create-ai-job";
@@ -81,14 +81,7 @@ export function useDirectorForm(projectId: string) {
       });
 
       setActiveJob(projectId, accepted.id);
-      try {
-        sessionStorage.setItem(
-          `intentcut:ai-job:${projectId}`,
-          accepted.id,
-        );
-      } catch {
-        // Storage is optional.
-      }
+      writeSavedJobId(projectId, sessionStorage, accepted.id);
     } catch (error) {
       // The backend may have accepted the job before
       // the browser received its response.

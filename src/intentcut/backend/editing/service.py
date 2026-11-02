@@ -47,7 +47,8 @@ class EditingService:
         artifact = self.jobs.artifact(project_id, base_job_id, artifact_id)
         if (
             job.status != "succeeded"
-            or job.request_payload.get("pipeline_version") != "uploaded_v1"
+            or job.request_payload.get("pipeline_version")
+            not in {"uploaded_v1", "highlight_v1"}
             or artifact.kind != "storyboard"
         ):
             raise AIJobAPIError(

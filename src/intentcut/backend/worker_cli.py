@@ -24,6 +24,7 @@ from intentcut.backend.editing.processor import ManualRenderProcessor
 from intentcut.backend.editing.revisions import RevisionProcessor
 from intentcut.backend.editing.service import EditingService
 from intentcut.backend.first_cut.media_inputs import processing_available
+from intentcut.backend.highlights.adapter import HighlightProcessingAdapter
 from intentcut.backend.jobs.dispatch import JobDispatcher, JobRegistration, JobType
 from intentcut.backend.shared.settings import BackendSettings
 from intentcut.backend.storage.database import Database
@@ -163,6 +164,18 @@ def run_worker(
                 registrations.append(
                     JobRegistration(
                         JobType.UPLOADED_FIRST_CUT, ai_processor, ProcessingResult
+                    )
+                )
+                registrations.append(
+                    JobRegistration(
+                        JobType.HIGHLIGHT_FIRST_CUT,
+                        HighlightProcessingAdapter(
+                            database=database,
+                            storage=storage,
+                            settings=settings,
+                            muse=ai_processor.muse,
+                        ),
+                        ProcessingResult,
                     )
                 )
             if revision_processor is not None:

@@ -84,14 +84,27 @@ class RealAIProcessingAdapter:
         if not updated:
             raise JobLeaseLost("Job progress rejected by lease")
 
+    def _admit_request(self, job: AIJob) -> UploadedFirstCutRequest:
+        return UploadedFirstCutRequest.model_validate(job.request_payload)
+
+    def _plan_inputs(self, job: AIJob, assets, request) -> list | None:
+        """Return per-asset window plans, or None to plan after staging."""
+        del job
+        return plan_inputs(assets, request.target_seconds, self.settings)
+
+    def _plan_from_staged(self, job: AIJob, request, sources) -> list:
+        """Plan windows once verified source files exist. Base never defers."""
+        del job, request, sources
+        raise AIProcessingError("unsupported_job_type")
+
     def __call__(self, job: AIJob) -> ProcessingResult:
-        request = UploadedFirstCutRequest.model_validate(job.request_payload)
+        request = self._admit_request(job)
         self._check_lease(job)
         self._progress(job, "preparing_media")
         assets = [
             self.database.get_media(job.project_id, mid) for mid in request.media_ids
         ]
-        plans = plan_inputs(assets, request.target_seconds, self.settings)
+        plans = self._plan_inputs(job, assets, request)
         workspace = self.storage.job_workspace(
             job.id, job.attempt_count, job.lease_token
         )
@@ -101,7 +114,8 @@ class RealAIProcessingAdapter:
         sources = []
         remote_bytes = 0
         # Prepare and validate ALL sources/windows before spending on inference.
-        for asset, plan in zip(assets, plans, strict=True):
+        staged_plans = plans if plans is not None else [None] * len(assets)
+        for asset, plan in zip(assets, staged_plans, strict=True):
             self._check_lease(job)
             directory = workspace / str(asset.id)
             directory.mkdir(mode=0o700)
@@ -120,6 +134,17 @@ class RealAIProcessingAdapter:
             except Exception as exc:
                 raise AIProcessingError("source_unavailable") from exc
             sources.append((asset, plan, directory, source, digest, metadata))
+
+        if plans is None:
+            deferred = self._plan_from_staged(job, request, sources)
+            if len(deferred) != len(sources):
+                raise AIProcessingError("processing_failed")
+            sources = [
+                (asset, plan, directory, source, digest, metadata)
+                for (asset, _, directory, source, digest, metadata), plan in zip(
+                    sources, deferred, strict=True
+                )
+            ]
 
         self._progress(job, "extracting_windows")
         for asset, plan, directory, source, digest, metadata in sources:
