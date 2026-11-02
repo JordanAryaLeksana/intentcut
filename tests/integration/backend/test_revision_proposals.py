@@ -1,5 +1,6 @@
 """Persisted proposals with fake inference; real PostgreSQL and FFmpeg on accept."""
 
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
@@ -17,6 +18,8 @@ from intentcut.backend.contracts import ProposalResult
 from intentcut.backend.editing.revisions import RevisionProcessor, complete_proposal
 from intentcut.backend.editing.service import EditingService
 from intentcut.backend.storage.database_models import AIJob
+from intentcut.media.probe_parser import MediaProbe
+from intentcut.media.render import OutputValidator
 
 pytestmark = [pytest.mark.integration, pytest.mark.postgres]
 setup = test_manual_editing.setup
@@ -57,7 +60,9 @@ def request(api, project, revision=1, instruction="Reverse the existing cuts"):
     return response.json()["id"], body
 
 
-def test_proposal_accepts_exact_revision_and_renders_real_mp4(setup, database, storage):
+def test_proposal_accepts_exact_revision_and_renders_real_mp4(
+    setup, database, storage, tmp_path
+):
     api, project, body, saved, manual, muse, worker = prepare(setup, database, storage)
     path = f"/projects/{project}/edit-draft"
     indices = list(reversed(saved["window_indices"]))
@@ -90,6 +95,55 @@ def test_proposal_accepts_exact_revision_and_renders_real_mp4(setup, database, s
     )
     assert muse.revise.call_count == 1
     assert muse.analyze.call_count == 0 and muse.select.call_count == 0
+    base_items = api.get(
+        f"/projects/{project}/ai-jobs/{body['base_job_id']}/artifacts"
+    ).json()["items"]
+    original_download = api.get(
+        next(a["download_url"] for a in base_items if a["kind"] == "video")
+    )
+    assert original_download.headers["content-type"] == "video/mp4"
+    original_bytes = original_download.content
+    items = api.get(f"/projects/{project}/ai-jobs/{render}/artifacts").json()["items"]
+    assert {item["kind"] for item in items} == {"storyboard", "video"}
+    revised_download = api.get(
+        next(a["download_url"] for a in items if a["kind"] == "video")
+    )
+    assert revised_download.headers["content-type"] == "video/mp4"
+    revised_bytes = revised_download.content
+    original_path = tmp_path / "original.mp4"
+    revised_path = tmp_path / "revised.mp4"
+    original_path.write_bytes(original_bytes)
+    revised_path.write_bytes(revised_bytes)
+    story = api.get(
+        next(a["download_url"] for a in items if a["kind"] == "storyboard")
+    ).json()
+    manifest = story["render_manifest"]
+    assert [c["window_index"] for c in story["cuts"]] == indices
+    assert manifest["draft_revision"] == 2
+    validator = OutputValidator()
+    metadata = MediaProbe().probe(revised_path)
+    validator.validate(metadata, manifest["total_frames"] / manifest["fps"])
+    validator.verify_playback(revised_path, metadata.duration)
+    original_metadata = MediaProbe().probe(original_path)
+    revised_first = test_manual_editing.sample(revised_path, 0.1)
+    revised_last = test_manual_editing.sample(
+        revised_path, max(metadata.duration - 0.1, 0.1)
+    )
+    original_first = test_manual_editing.sample(original_path, 0.1)
+    original_last = test_manual_editing.sample(
+        original_path, max(original_metadata.duration - 0.1, 0.1)
+    )
+    assert revised_first == original_last and revised_last == original_first
+    assert hashlib.sha256(original_bytes).hexdigest() != hashlib.sha256(
+        revised_bytes
+    ).hexdigest()
+    for artifact in database.list_ai_job_artifacts(UUID(project), UUID(render)):
+        assert (
+            hashlib.sha256(
+                (storage.root / artifact.storage_key).read_bytes()
+            ).hexdigest()
+            == artifact.sha256
+        )
 
 
 def test_removal_rejection_and_cross_project_references(setup, database, storage):
