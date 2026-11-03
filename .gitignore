@@ -44,12 +44,12 @@ node_modules/
 # ==========================================
 # IntentCut — Local AI Agent Workspaces
 # ==========================================
-.agents/
-.agent/
-.claude/
-.codex/
-.muse/
-.cursor/
+.agents/*
+.agent/*
+.claude/*
+.codex/*
+.muse/*
+.cursor/*
 
 # ==========================================
 # IntentCut — Runtime & AI Processing
@@ -110,4 +110,5 @@ service-account*.json
 # ==========================================
 *.swp
 *.swo
-*~\
+*~
+/.local-backups/
