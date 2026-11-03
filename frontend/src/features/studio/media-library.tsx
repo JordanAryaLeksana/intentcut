@@ -26,8 +26,8 @@ export function MediaLibrary({ projectId }: { projectId?: string }) {
   const chooseButton = useRef<HTMLButtonElement>(null);
 
   return (
-    <section className="studio-panel studio-library" aria-labelledby="library-heading">
-      <header className="studio-panelHeader"><h2 id="library-heading">Media Pool</h2><span className="technical">{state.files.length} local</span></header>
+    <section className="studio-panel studio-library" aria-labelledby="library-heading" data-tour="media">
+      <header className="studio-panelHeader"><h2 id="library-heading">Media Library</h2><span className="technical">{state.files.length} local</span></header>
       <div className="media-library-content">
         <details className="studio-import" open={projectId ? undefined : true}>
           <summary>Import footage <span>Local videos</span></summary>

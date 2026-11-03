@@ -4,6 +4,7 @@ import { MediaLibrary } from "./media-library";
 import { ProgramMonitor } from "./program-monitor";
 import { StudioDock } from "./studio-dock";
 import { NarrativeTimeline } from "./narrative-timeline";
+import { StudioTour } from "./studio-tour";
 
 export function StudioShell({ projectId }: { projectId?: string }) {
   return (
@@ -27,7 +28,8 @@ export function StudioShell({ projectId }: { projectId?: string }) {
 
         <NarrativeTimeline projectId={projectId} />
       </main>
-      <footer className="studio-footer"><span>IntentCut Studio</span><span>Draft editing · Versioned saves</span></footer>
+      <StudioTour />
+      <footer className="studio-footer"><span>IntentCut Studio</span><span>Your drafts and videos are saved to this project</span></footer>
     </div>
   );
 }

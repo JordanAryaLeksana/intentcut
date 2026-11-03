@@ -65,7 +65,7 @@ test("remove supports empty draft, repairs selection and undo restores exact sta
   assert.equal(draft().cuts.length, 0);
   assert.equal(draft().selectedId, null);
   const html = render(createElement(DraftTimeline, { projectId: "p", draft: draft() }));
-  assert.match(html, /Draft is empty/);
+  assert.match(html, /draft is empty/);
   for (let i = 0; i < 5; i++) store().undo("p");
   assert.deepEqual(draft().cuts.map(c => c.window_index), [2, 6, 4, 8, 5]);
   assert.equal(isDraftDirty(draft()), false);
@@ -129,7 +129,7 @@ test("accessible controls expose real disabled states and selected state", () =>
   assert.equal((html.match(/disabled=""/g) ?? []).length, 1);
   html = render(createElement(DraftTimeline, { projectId: "p", draft: draft() }));
   assert.match(html, /aria-pressed="true"/);
-  assert.match(html, /Unsaved draft changes/);
+  assert.match(html, /Unsaved changes/);
   assert.doesNotMatch(html, /Render Changes|draggable|playhead/i);
 });
 

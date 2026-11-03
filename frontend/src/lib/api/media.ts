@@ -6,6 +6,7 @@ import type {
 
 import {
   ApiError,
+  canonicalId,
   isProjectId,
   isRecord,
   requestJSON,
@@ -27,7 +28,8 @@ function isMediaAsset(value: unknown, projectId: string): value is MediaAsset {
     isRecord(value) &&
     typeof value.id === "string" &&
     isProjectId(value.id) &&
-    value.project_id === projectId &&
+    typeof value.project_id === "string" &&
+    canonicalId(value.project_id) === canonicalId(projectId) &&
     typeof value.original_filename === "string" &&
     typeof value.size_bytes === "number" &&
     Number.isFinite(value.size_bytes) &&
@@ -87,7 +89,11 @@ export async function getMedia(
 ): Promise<MediaAsset> {
   const id = requireUUID(mediaId, "media");
   const value = await requestJSON(`${mediaPath(projectId)}/${id}`, { signal });
-  if (!isMediaAsset(value, projectId) || value.id !== id) {
+  if (
+    !isMediaAsset(value, projectId) ||
+    typeof value.id !== "string" ||
+    canonicalId(value.id) !== id
+  ) {
     throw new ApiError("Invalid media response.", 0, "invalid_response");
   }
   return value;

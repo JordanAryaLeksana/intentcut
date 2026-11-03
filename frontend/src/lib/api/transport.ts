@@ -22,11 +22,16 @@ export function isProjectId(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
+/** PostgreSQL/FastAPI render UUIDs in lowercase; URLs may carry any case. */
+export function canonicalId(id: string): string {
+  return id.toLowerCase();
+}
+
 export function requireUUID(id: string, kind: string): string {
   if (!isProjectId(id)) {
     throw new ApiError(`Invalid ${kind} ID.`, 0, `invalid_${kind}`);
   }
-  return id;
+  return canonicalId(id);
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

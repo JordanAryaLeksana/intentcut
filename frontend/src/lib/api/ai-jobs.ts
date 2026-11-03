@@ -1,5 +1,12 @@
 import type { AIJob, AIJobAccepted, FirstCutRequest } from "./contracts.ts";
-import { ApiError, isProjectId, isRecord, requestJSON, requireUUID } from "./transport";
+import {
+  ApiError,
+  canonicalId,
+  isProjectId,
+  isRecord,
+  requestJSON,
+  requireUUID,
+} from "./transport";
 import { isTimestamp, parseJobProgress } from "./job-progress";
 
 export function aiJobsPath(projectId: string): string {
@@ -12,7 +19,7 @@ function validateFirstCut(payload: FirstCutRequest): FirstCutRequest {
   }
   const intent = payload.intent.trim();
   if ([...intent].length < 1 || [...intent].length > 1000) {
-    throw new ApiError("Creative brief must contain 1–1000 characters.", 0, "invalid_intent");
+    throw new ApiError("Your story idea needs 1–1000 characters.", 0, "invalid_intent");
   }
   if (
     !Number.isFinite(payload.target_seconds) ||
@@ -20,7 +27,7 @@ function validateFirstCut(payload: FirstCutRequest): FirstCutRequest {
     payload.target_seconds > 120
   ) {
     throw new ApiError(
-      "Target duration must be greater than 0 and at most 120 seconds.",
+      "Length must be more than 0 and at most 120 seconds.",
       0,
       "invalid_duration",
     );
@@ -32,7 +39,7 @@ function validateFirstCut(payload: FirstCutRequest): FirstCutRequest {
     payload.media_ids.some((id) => !isProjectId(id)) ||
     new Set(payload.media_ids).size !== payload.media_ids.length
   ) {
-    throw new ApiError("Select 1–10 unique saved media assets.", 0, "invalid_media");
+    throw new ApiError("Pick 1–10 different saved videos.", 0, "invalid_media");
   }
   return {
     kind: "first_cut",
@@ -60,7 +67,7 @@ export async function createAIJob(
     typeof value.id !== "string" ||
     !isProjectId(value.id) ||
     value.status !== "queued" ||
-    value.status_url !== `${path}/${value.id}`
+    value.status_url !== `${path}/${canonicalId(value.id)}`
   ) {
     throw new ApiError(
       "Invalid job confirmation. Check existing jobs before resubmitting.",
@@ -71,16 +78,13 @@ export async function createAIJob(
   return value as unknown as AIJobAccepted;
 }
 
-export async function getAIJob(
-  projectId: string,
-  jobId: string,
-  signal?: AbortSignal,
-): Promise<AIJob> {
-  const path = `${aiJobsPath(projectId)}/${requireUUID(jobId, "job")}`;
-  const value = await requestJSON(path, { signal });
+function parseAIJob(value: unknown, expectedId?: string): AIJob {
   if (
     !isRecord(value) ||
-    value.id !== jobId ||
+    typeof value.id !== "string" ||
+    !isProjectId(value.id) ||
+    (expectedId !== undefined &&
+      canonicalId(value.id) !== canonicalId(expectedId)) ||
     typeof value.status !== "string" ||
     !["queued", "running", "succeeded", "failed"].includes(value.status) ||
     !isTimestamp(value.created_at) ||
@@ -98,4 +102,26 @@ export async function getAIJob(
     ...(value as unknown as AIJob),
     progress: value.status === "running" ? progress : null,
   };
+}
+
+export async function getAIJob(
+  projectId: string,
+  jobId: string,
+  signal?: AbortSignal,
+): Promise<AIJob> {
+  const path = `${aiJobsPath(projectId)}/${requireUUID(jobId, "job")}`;
+  const value = await requestJSON(path, { signal });
+  return parseAIJob(value, jobId);
+}
+
+/** Existing first-cut/highlight jobs, newest first. Recovery reads only. */
+export async function listAIJobs(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<AIJob[]> {
+  const value = await requestJSON(aiJobsPath(projectId), { signal });
+  if (!isRecord(value) || !Array.isArray(value.items)) {
+    throw new ApiError("Invalid AI job list response.", 0, "invalid_response");
+  }
+  return value.items.map((item) => parseAIJob(item));
 }

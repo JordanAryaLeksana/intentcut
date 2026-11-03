@@ -15,8 +15,8 @@ import { useAIJobStatus } from "../ai-director/hooks/use-ai-job-status";
 export const visualHistoryKey=(project:string)=>["projects",project,"visual-assets"] as const;
 export function visualPolling(value?:VisualHistory):number|false{return value?.items.some(j=>j.status==="queued"||j.status==="running")?2000:false;}
 function errorText(error:unknown){
-  if(error instanceof ApiError&&error.status===409)return "The image request or cover changed. Refresh before retrying; local prompt is retained.";
-  return "The image operation could not be confirmed. Refresh existing jobs before retrying.";
+  if(error instanceof ApiError&&error.status===409)return "This changed elsewhere. What you wrote is kept — check your images before trying again.";
+  return "We couldn’t confirm that. See what’s already done before trying once more.";
 }
 export function VisualImage({project,job,artifact,alt}:{project:string;job:string;artifact:string;alt:string}){
   const key=`${project}:${job}:${artifact}`;
@@ -39,9 +39,9 @@ function VisualStatus({project,job}:{project:string;job:VisualJob}){
   const observed=useAIJobStatus(project,job.id);
   const status=observed.data?.status??job.status;
   const stage=observed.data?.progress?.stage;
-  let copy=status==="queued"?"Accepted · waiting":status==="succeeded"?"Image published":status==="failed"?"Image processing failed. No automatic paid retry was submitted.":stage==="validating_image"?"Validating image bytes":stage==="publishing_artifacts"?"Publishing image":stage==="preparing_media"?"Verifying reference":"Muse Image is processing";
-  if(status==="failed"&&(observed.data?.error_code??job.error_code)==="image_outcome_unknown")copy="Provider outcome uncertain. Automatic retry is disabled to avoid duplicate charges.";
-  return <p role="status">{copy}{observed.isError&&<> Status refresh unavailable. <button type="button" onClick={()=>void observed.refetch()}>Retry status</button></>}</p>;
+  let copy=status==="queued"?"Waiting to start":status==="succeeded"?"Your image is ready":status==="failed"?"We couldn’t create this image. We didn’t try again, so you won’t be charged twice.":stage==="validating_image"?"Checking your image":stage==="publishing_artifacts"?"Saving your image":stage==="preparing_media"?"Checking your starting image":"Creating your image…";
+  if(status==="failed"&&(observed.data?.error_code??job.error_code)==="image_outcome_unknown")copy="We’re not sure whether this image finished. We didn’t start again, so you won’t be charged twice.";
+  return <p role="status">{copy}{observed.isError&&<> We couldn’t check progress. <button type="button" onClick={()=>void observed.refetch()}>Check again</button></>}</p>;
 }
 export function VisualPromptForm({prompt,setPrompt,preset,setPreset,operation,setOperation,source,setSource,frame,setFrame,video,images,pending,onSubmit}:{
   prompt:string;setPrompt:(v:string)=>void;preset:VisualJob["preset"];setPreset:(v:VisualJob["preset"])=>void;
@@ -49,13 +49,13 @@ export function VisualPromptForm({prompt,setPrompt,preset,setPreset,operation,se
   frame:string;setFrame:(v:string)=>void;video?:string;images:VisualJob[];pending:boolean;onSubmit:()=>void;
 }){
   return <form className="studio-visualForm" onSubmit={e=>{e.preventDefault();onSubmit();}}>
-    <label htmlFor="visual-prompt">Image instruction<textarea id="visual-prompt" value={prompt} maxLength={2000} rows={4} onChange={e=>setPrompt(e.target.value)} required /></label>
-    <label htmlFor="visual-preset">Creative preset<select id="visual-preset" value={preset} onChange={e=>{const v=e.target.value;if(v==="thumbnail"||v==="cover"||v==="poster")setPreset(v);}}><option value="thumbnail">Thumbnail · landscape</option><option value="cover">Cinematic cover · landscape</option><option value="poster">Poster · portrait</option></select></label>
-    <p className="studio-storyboardNote">Presets suggest aspect ratio; actual generated pixel dimensions are model-dependent. These are still images, not video title cards.</p>
-    <label htmlFor="visual-operation">Mode<select id="visual-operation" value={operation} onChange={e=>setOperation(e.target.value==="edit"?"edit":"generate")}><option value="generate">Generate from text</option><option value="edit">Edit an authorized image/frame</option></select></label>
-    {operation==="edit"&&<><label htmlFor="visual-source">Reference asset<select id="visual-source" value={source} onChange={e=>setSource(e.target.value)} required><option value="">Choose reference</option>{video&&<option value={video}>Current rendered video frame</option>}{images.filter(i=>i.artifact_id).map(i=><option key={i.id} value={i.artifact_id??""}>{i.preset} · {i.artifact_id?.slice(0,8)}</option>)}</select></label>{source===video&&<label htmlFor="visual-frame">Frame position (seconds)<input id="visual-frame" type="number" min="0" max="600" step="0.001" value={frame} onChange={e=>setFrame(e.target.value)} required /></label>}</>}
-    <p>This explicit action may use paid Muse Image credits when an image worker is enabled.</p>
-    <button type="submit" className="button button-primary" disabled={pending||!prompt.trim()||(operation==="edit"&&!source)}>{pending?"Submitting…":operation==="edit"?"Request image edit":"Generate image"}</button>
+    <label htmlFor="visual-prompt">Describe your image<textarea id="visual-prompt" value={prompt} maxLength={2000} rows={4} onChange={e=>setPrompt(e.target.value)} required /></label>
+    <label htmlFor="visual-preset">What is it for?<select id="visual-preset" value={preset} onChange={e=>{const v=e.target.value;if(v==="thumbnail"||v==="cover"||v==="poster")setPreset(v);}}><option value="thumbnail">Thumbnail · wide</option><option value="cover">Cover image · wide</option><option value="poster">Poster · tall</option></select></label>
+    <p className="studio-storyboardNote">These shapes are a guide — the exact image size may vary. You’ll get a still image, not a video title card.</p>
+    <label htmlFor="visual-operation">How to create it<select id="visual-operation" value={operation} onChange={e=>setOperation(e.target.value==="edit"?"edit":"generate")}><option value="generate">From my description</option><option value="edit">From an image or video frame</option></select></label>
+    {operation==="edit"&&<><label htmlFor="visual-source">Starting image<select id="visual-source" value={source} onChange={e=>setSource(e.target.value)} required><option value="">Choose a starting image</option>{video&&<option value={video}>A frame from my current video</option>}{images.filter(i=>i.artifact_id).map(i=><option key={i.id} value={i.artifact_id??""}>{i.preset} image</option>)}</select></label>{source===video&&<label htmlFor="visual-frame">Which second of the video?<input id="visual-frame" type="number" min="0" max="600" step="0.001" value={frame} onChange={e=>setFrame(e.target.value)} required /></label>}</>}
+    <p>Creating an image may use paid credits. We’ll only start when you ask.</p>
+    <button type="submit" className="button button-primary" disabled={pending||!prompt.trim()||(operation==="edit"&&!source)}>{pending?"Creating…":operation==="edit"?"Create edited image":"Create image"}</button>
   </form>;
 }
 function ConnectedVisuals({project}:{project:string}){
@@ -76,17 +76,17 @@ function ConnectedVisuals({project}:{project:string}){
     return submitVisual(project,body);
   },retry:false,onSuccess:()=>{setRequestId(crypto.randomUUID());refresh();}});
   const selection=useMutation({mutationFn:(id:string)=>setProjectCover(project,id,history.data?.cover?.revision??0),retry:false,onSuccess:refresh});
-  if(history.isPending)return <p role="status">Loading saved visual assets…</p>;
-  if(history.isError)return <div role="alert"><p>AI Visuals is unavailable. Check the local API and required schema migrations.</p><button type="button" className="button button-secondary" onClick={()=>void history.refetch()}>Retry assets</button></div>;
+  if(history.isPending)return <p role="status">Loading your images…</p>;
+  if(history.isError)return <div role="alert"><p>Images aren’t available right now. Your project is saved — try again in a moment.</p><button type="button" className="button button-secondary" onClick={()=>void history.refetch()}>Try again</button></div>;
   const data=history.data;
   return <div className="studio-visualBody">
-    {data.cover&&<article><h3>Current project cover · saved revision {data.cover.revision}</h3><VisualImage key={data.cover.artifact_id} project={project} job={data.cover.job_id} artifact={data.cover.artifact_id} alt="Saved project cover" /></article>}
+    {data.cover&&<article><h3>Your project cover</h3><VisualImage key={data.cover.artifact_id} project={project} job={data.cover.job_id} artifact={data.cover.artifact_id} alt="Your project cover" /></article>}
     <VisualPromptForm prompt={prompt} setPrompt={setPrompt} preset={preset} setPreset={setPreset} operation={operation} setOperation={setOperation} source={selectedSource} setSource={value=>setSource(value===video?"current-video":value)} frame={frame} setFrame={setFrame} video={video} images={data.items} pending={submission.isPending||data.items.some(j=>j.status==="queued"||j.status==="running")} onSubmit={()=>submission.mutate()} />
-    {submission.isError&&<p role="alert">{errorText(submission.error)} <button type="button" onClick={()=>void history.refetch()}>Refresh accepted requests</button></p>}
-    {selection.isError&&<p role="alert">{errorText(selection.error)} <button type="button" onClick={()=>void history.refetch()}>Refresh cover</button></p>}
-    <h3>Saved assets</h3>
-    {!data.items.length&&<p>No generated images yet.</p>}
-    {data.items.map(job=><article key={job.id} className="studio-visualAsset"><h4>{job.preset} · {job.operation}</h4><p>Muse Image 1.0{job.source_artifact_id?` · reference ${job.source_artifact_id.slice(0,8)}`:" · text generated"}{job.frame_seconds!==null?` · frame at ${job.frame_seconds}s`:""}</p><VisualStatus project={project} job={job} />{job.status==="succeeded"&&job.artifact_id&&<><VisualImage project={project} job={job.id} artifact={job.artifact_id} alt={`${job.preset} generated by Muse Image`} /><button type="button" className="button button-primary" disabled={selection.isPending||data.cover?.artifact_id===job.artifact_id} onClick={()=>selection.mutate(job.artifact_id??"")}>{data.cover?.artifact_id===job.artifact_id?"Current cover":"Set as Cover"}</button></>}</article>)}
+    {submission.isError&&<p role="alert">{errorText(submission.error)} <button type="button" onClick={()=>void history.refetch()}>See what’s already done</button></p>}
+    {selection.isError&&<p role="alert">{errorText(selection.error)} <button type="button" onClick={()=>void history.refetch()}>Check your cover</button></p>}
+    <h3>Your images</h3>
+    {!data.items.length&&<p>No images yet. Describe one above to create your first.</p>}
+    {data.items.map(job=><article key={job.id} className="studio-visualAsset"><h4>{job.preset === "thumbnail" ? "Thumbnail" : job.preset === "cover" ? "Cover image" : "Poster"} · {job.operation === "edit" ? "Edited" : "New image"}</h4><p>{job.source_artifact_id ? "Started from one of your images" : "Created from your description"}{job.frame_seconds!==null?` · from ${job.frame_seconds}s in your video`:""}</p><VisualStatus project={project} job={job} />{job.status==="succeeded"&&job.artifact_id&&<><VisualImage project={project} job={job.id} artifact={job.artifact_id} alt={`Your ${job.preset} image`} /><button type="button" className="button button-primary" disabled={selection.isPending||data.cover?.artifact_id===job.artifact_id} onClick={()=>selection.mutate(job.artifact_id??"")}>{data.cover?.artifact_id===job.artifact_id?"This is your cover":"Use as cover"}</button></>}</article>)}
   </div>;
 }
-export function VisualsPanel({projectId}:{projectId?:string}){return <section className="studio-visuals"><header className="studio-panelHeader"><h2>AI Visuals</h2><span>Images / project cover</span></header>{projectId?<ConnectedVisuals key={projectId} project={projectId}/>:<p>Open a project to create visual assets.</p>}</section>;}
+export function VisualsPanel({projectId}:{projectId?:string}){return <section className="studio-visuals"><header className="studio-panelHeader"><h2>AI Visuals</h2><span>Cover &amp; images</span></header>{projectId?<ConnectedVisuals key={projectId} project={projectId}/>:<p>Open a project to create images.</p>}</section>;}

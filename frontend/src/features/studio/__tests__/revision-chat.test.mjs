@@ -21,16 +21,16 @@ function reset(){useDraftStore.setState({byProject:{},savedByProject:{},restored
 test("review shows actual instruction, before/after sequence and explicit decisions",()=>{
  const c=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity}}});
  const html=renderToStaticMarkup(createElement(QueryClientProvider,{client:c},createElement(ProposalReview,{projectId:project,proposal})));
- assert.match(html,/Move the last cut first/);assert.match(html,/Current at request/);assert.match(html,/Proposed order/);
- assert.match(html,/Accept proposal/);assert.match(html,/Reject proposal/);assert.match(html,/approval is required/);
+ assert.match(html,/Move the last cut first/);assert.match(html,/Your order now/);assert.match(html,/Suggested order/);
+ assert.match(html,/Use this order/);assert.match(html,/No thanks/);assert.match(html,/Nothing changes until you say yes/);
  assert.doesNotMatch(html,/MP4 updated|rendered successfully|<script/);c.clear();
 });
 test("queued/running/failed/stale states never imply an applied edit",()=>{
  assert.match(proposalStatus({...proposal,job_status:"queued"}),/Waiting/);
- assert.match(proposalStatus({...proposal,job_status:"running",progress:{stage:"revising_sequence"}}),/Muse/);
- assert.match(proposalStatus({...proposal,state:"failed",error_code:"unsupported_revision"}),/Unsupported/);
- assert.match(proposalStatus({...proposal,state:"stale"}),/Stale/);
- assert.match(proposalStatus({...proposal,state:"accepted",applied_revision:2}),/Not rendered/);
+ assert.match(proposalStatus({...proposal,job_status:"running",progress:{stage:"revising_sequence"}}),/AI Director/);
+ assert.match(proposalStatus({...proposal,state:"failed",error_code:"unsupported_revision"}),/only reorder/);
+ assert.match(proposalStatus({...proposal,state:"stale"}),/Out of date/);
+ assert.match(proposalStatus({...proposal,state:"accepted",applied_revision:2}),/Make a new video/);
 });
 test("acceptance applies a saved revision as one undoable edit",()=>{reset();
  const store=useDraftStore.getState();const current=store.byProject[project];

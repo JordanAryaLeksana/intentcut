@@ -28,12 +28,17 @@ const EMPTY_CANDIDATES: HighlightCandidate[] = [];
 
 function statusMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 503) {
-    return "Highlight processing is unavailable in this environment.";
+    return "Finding highlights isn’t available right now. Your footage is unchanged — try again later.";
   }
   if (error instanceof ApiError && error.status === 422) {
-    return "This source exceeds highlight processing limits.";
+    return "This video is too long for highlight search. Try a shorter video.";
   }
-  return error instanceof Error ? error.message : "Request was not confirmed.";
+  return error instanceof Error ? error.message : "We couldn’t confirm that. Check again before trying once more.";
+}
+
+function momentLabel(candidates: HighlightCandidate[], id: string): string {
+  const index = candidates.findIndex((c) => c.id === id);
+  return index >= 0 ? `Moment ${index + 1}` : "This moment";
 }
 
 export function HighlightNavigator({ projectId }: { projectId?: string }) {
@@ -141,7 +146,7 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
   const aiMatch = inspected && storyboard.data ? matchStoryboardCut(inspected, storyboard.data.cuts) : null;
 
   if (!projectId) {
-    return <p>Open a project to discover highlight candidates.</p>;
+    return <p>Open a project to find your best moments.</p>;
   }
 
   const generating = generate.isPending || jobStatus.data?.status === "queued" || jobStatus.data?.status === "running";
@@ -149,25 +154,25 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
   return (
     <div className="highlight-navigator">
       <header className="studio-panelHeader">
-        <h2>AI Highlight Navigator</h2>
-        <span>Long-form</span>
+        <h2>Highlights</h2>
+        <span>Best moments</span>
       </header>
 
-      <section aria-label="Long-form source" className="highlight-section">
+      <section aria-label="Your video" className="highlight-section">
         <label className="highlight-label" htmlFor="highlight-source">
-          Source
+          Your video
         </label>
         {media.isPending ? (
-          <p role="status">Loading saved footage…</p>
+          <p role="status">Loading your footage…</p>
         ) : media.isError ? (
           <div>
-            <p role="alert">Could not load saved footage.</p>
+            <p role="alert">We couldn’t load your footage.</p>
             <button type="button" className="button button-secondary" onClick={() => void media.refetch()}>
-              Retry footage
+              Try again
             </button>
           </div>
         ) : !sources.length ? (
-          <p>Upload a video in the Media Pool to begin highlight discovery.</p>
+          <p>Add a video in Media Library to find your best moments.</p>
         ) : (
           <>
             <select
@@ -195,28 +200,28 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
       </section>
 
       {effectiveMediaId && (
-        <section aria-label="Discovered candidates" className="highlight-section">
-          <h3 className="highlight-heading">Candidates</h3>
+        <section aria-label="Your best moments" className="highlight-section">
+          <h3 className="highlight-heading">Your best moments</h3>
           {candidatesQuery.isPending ? (
-            <p role="status">Scanning the full source timeline…</p>
+            <p role="status">Looking through your whole video…</p>
           ) : candidatesQuery.isError ? (
             <div>
               <p role="alert">{statusMessage(candidatesQuery.error)}</p>
               <button type="button" className="button button-secondary" onClick={() => void candidatesQuery.refetch()}>
-                Retry discovery
+                Look again
               </button>
             </div>
           ) : !candidates.length ? (
-            <p>No candidate moments survived deduplication for this source.</p>
+            <p>We didn’t spot standout moments in this video. Try a different video, or create a first cut with AI Director instead.</p>
           ) : (
             <>
               <div
                 className="highlight-timeline"
                 role="group"
-                aria-label={`Candidate markers across ${formatTimestamp(candidatesQuery.data?.duration_seconds ?? 0)}`}
+                aria-label={`Your best moments across ${formatTimestamp(candidatesQuery.data?.duration_seconds ?? 0)}`}
               >
                 <div className="highlight-track">
-                  {candidates.map((candidate) => {
+                  {candidates.map((candidate, candidateIndex) => {
                     const { left, width } = markerPercent(
                       candidate.start_seconds,
                       candidate.end_seconds,
@@ -231,8 +236,8 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
                         className={`highlight-marker${active ? " is-active" : ""}${excluded ? " is-excluded" : ""}${aiMatch && candidate.id === inspectedId ? " is-ai" : ""}`}
                         style={{ left, width }}
                         aria-pressed={active}
-                        aria-label={`${candidate.id} ${formatTimestamp(candidate.start_seconds)} to ${formatTimestamp(candidate.end_seconds)}, heuristic score ${candidate.score.toFixed(2)}${excluded ? ", excluded from generation" : ""}`}
-                        title={`${candidate.id} · ${formatTimestamp(candidate.start_seconds)}–${formatTimestamp(candidate.end_seconds)}`}
+                        aria-label={`Moment ${candidateIndex + 1}, ${formatTimestamp(candidate.start_seconds)} to ${formatTimestamp(candidate.end_seconds)}, score ${candidate.score.toFixed(2)}${excluded ? ", not included" : ""}`}
+                        title={`Moment ${candidateIndex + 1} · ${formatTimestamp(candidate.start_seconds)}–${formatTimestamp(candidate.end_seconds)}`}
                         onClick={() => setInspectedId(candidate.id)}
                       />
                     );
@@ -245,7 +250,7 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
               </div>
 
               <ol className="highlight-list">
-                {candidates.map((candidate) => (
+                {candidates.map((candidate, candidateIndex) => (
                   <li key={candidate.id} className={candidate.id === inspectedId ? "is-active" : ""}>
                     <label className="highlight-listRow">
                       <input
@@ -260,7 +265,7 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
                               : base.filter((id) => id !== candidate.id);
                           });
                         }}
-                        aria-label={`Include ${candidate.id} in generation`}
+                        aria-label={`Include Moment ${candidateIndex + 1} in your highlights`}
                       />
                       <button
                         type="button"
@@ -268,11 +273,11 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
                         onClick={() => setInspectedId(candidate.id)}
                         aria-current={candidate.id === inspectedId}
                       >
-                        <strong>{candidate.id}</strong>
+                        <strong>Moment {candidateIndex + 1}</strong>
                         <span className="technical">
                           {formatTimestamp(candidate.start_seconds)}–{formatTimestamp(candidate.end_seconds)}
                         </span>
-                        <span>Heuristic {candidate.score.toFixed(2)}</span>
+                        <span>Score {candidate.score.toFixed(2)}</span>
                       </button>
                     </label>
                   </li>
@@ -284,8 +289,8 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
       )}
 
       {inspected && (
-        <section aria-label="Candidate inspector" className="highlight-section">
-          <h3 className="highlight-heading">Inspector · {inspected.id}</h3>
+        <section aria-label="About this moment" className="highlight-section">
+          <h3 className="highlight-heading">{momentLabel(candidates, inspected.id)}</h3>
           <video
             key={inspected.id}
             className="highlight-preview"
@@ -293,35 +298,35 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
             preload="metadata"
             playsInline
             src={highlightPreviewUrl(projectId, inspected.media_id, inspected.start_seconds, inspected.end_seconds)}
-            aria-label={`Preview of candidate ${inspected.id}`}
+            aria-label={`Preview of ${momentLabel(candidates, inspected.id)}`}
           />
           <dl className="highlight-facts">
             <div>
-              <dt>Source range</dt>
+              <dt>When it happens</dt>
               <dd className="technical">
                 {formatTimestamp(inspected.start_seconds)} – {formatTimestamp(inspected.end_seconds)} (
                 {(inspected.end_seconds - inspected.start_seconds).toFixed(1)}s)
               </dd>
             </div>
             <div>
-              <dt>Heuristic score</dt>
+              <dt>How strong it looks</dt>
               <dd className="technical">
-                {inspected.score.toFixed(3)} · exposure {inspected.components.exposure?.toFixed(2) ?? "–"} · color{" "}
+                Score {inspected.score.toFixed(2)} · brightness {inspected.components.exposure?.toFixed(2) ?? "–"} · colour{" "}
                 {inspected.components.color?.toFixed(2) ?? "–"} · sharpness{" "}
                 {inspected.components.sharpness?.toFixed(2) ?? "–"}
               </dd>
             </div>
             <div>
-              <dt>Evidence</dt>
-              <dd>Local pixel heuristics only — not semantic understanding.</dd>
+              <dt>How we chose it</dt>
+              <dd>By picture quality — brightness, colour, and sharpness. We haven’t judged what’s happening in the scene.</dd>
             </div>
             {aiMatch?.editorial_reason && (
               <div>
-                <dt>Muse editorial reason</dt>
+                <dt>Why your AI Director picked it</dt>
                 <dd>
                   {aiMatch.editorial_reason}
                   {aiMatch.playback_order !== undefined && (
-                    <span className="technical"> · playback #{aiMatch.playback_order + 1}</span>
+                    <span className="technical"> · plays {aiMatch.playback_order + 1} in your story</span>
                   )}
                 </dd>
               </div>
@@ -331,23 +336,23 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
       )}
 
       {effectiveMediaId && candidates.length > 0 && (
-        <section aria-label="Editorial workflow" className="highlight-section">
-          <h3 className="highlight-heading">Generate highlights</h3>
+        <section aria-label="Make your highlights" className="highlight-section">
+          <h3 className="highlight-heading">Make your highlights</h3>
           <fieldset className="highlight-mode">
-            <legend>Editorial mode</legend>
+            <legend>How should we choose?</legend>
             <label>
               <input type="radio" name="highlight-mode" checked={mode === "auto"} onChange={() => setMode("auto")} />
-              Auto — AI determines the moments
+              For me — pick the strongest moments
             </label>
             <label>
               <input type="radio" name="highlight-mode" checked={mode === "guided"} onChange={() => setMode("guided")} />
-              Guided — my intent guides selection
+              With my guidance — I’ll say what matters
             </label>
           </fieldset>
           {mode === "guided" && (
             <>
               <label className="highlight-label" htmlFor="highlight-intent">
-                Editorial intent
+                What moments matter most?
               </label>
               <textarea
                 id="highlight-intent"
@@ -360,7 +365,7 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
             </>
           )}
           <label className="highlight-label" htmlFor="highlight-target">
-            Target duration (seconds, max 120)
+            How long should it be? (seconds, up to 120)
           </label>
           <input
             id="highlight-target"
@@ -372,8 +377,8 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
             onChange={(event) => setTargetSeconds(Math.min(120, Math.max(1, Number(event.target.value) || 1)))}
           />
           <p className="highlight-note">
-            {includedIds.length} of {candidates.length} candidates included. Manual selection applies only when you
-            generate; it never changes an existing AI result.
+            {includedIds.length} of {candidates.length} moments included. Ticking moments only matters when you
+            create highlights — it never changes a video you already made.
           </p>
           <button
             type="button"
@@ -382,18 +387,18 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
             onClick={() => generate.mutate()}
           >
             {generate.isPending
-              ? "Submitting…"
+              ? "Starting…"
               : jobStatus.data?.status === "queued" || jobStatus.data?.status === "running"
-                ? "Generating…"
-                : "Generate Highlights"}
+                ? "Creating…"
+                : "Create highlights"}
           </button>
           {generate.isError && <p role="alert">{statusMessage(generate.error)}</p>}
           {activeJobId && jobStatus.data && (
             <p role="status" className="highlight-note">
-              Job {jobStatus.data.status}
+              Your highlights are {jobStatus.data.status === "succeeded" ? "ready" : jobStatus.data.status === "failed" ? "not ready" : "being created"}
               {jobStatus.data.status === "succeeded" &&
-                " — storyboard, timeline, revisions, captions, and MP4 download are available in the existing workflow."}
-              {jobStatus.data.status === "failed" && ` — ${jobStatus.data.error_code ?? "processing_failed"}.`}
+                " — watch them in Preview, refine them in Timeline and Captions, then download your video."}
+              {jobStatus.data.status === "failed" && " — something went wrong while creating them. Your footage is unchanged; you can try again."}
             </p>
           )}
         </section>

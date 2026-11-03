@@ -1,3 +1,4 @@
+import "./css-stub.setup.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -66,7 +67,7 @@ test("navigator mounts without crashing when query data is undefined", () => {
   // Regression: an unstable `?? []` fallback made the render-phase sync
   // guard fire on every render ("Too many re-renders", React #301).
   const html = renderNavigator({ projectId: undefined });
-  assert.match(html, /Open a project to discover highlight candidates\./);
+  assert.match(html, /Open a project to find your best moments\./);
 });
 
 test("navigator mounts without crashing when the candidate list is empty", () => {
@@ -77,7 +78,7 @@ test("navigator mounts without crashing when the candidate list is empty", () =>
       seedCandidates(client, []);
     },
   });
-  assert.match(html, /No candidate moments survived deduplication/);
+  assert.match(html, /didn’t spot standout moments/);
 });
 
 test("navigator survives repeated renders with stable output", () => {
@@ -119,7 +120,8 @@ test("navigator renders candidates when discovery data is present", () => {
       seedCandidates(client, [CANDIDATE]);
     },
   });
-  assert.match(html, /hl-01/);
+  assert.match(html, /Moment 1/);
+  assert.doesNotMatch(html, /hl-01/);
   assert.match(html, /00:13:33/);
-  assert.match(html, /Generate Highlights/);
+  assert.match(html, /Create highlights/);
 });

@@ -28,35 +28,37 @@ function SourceInspector({ projectId }: { projectId: string }) {
   const selected = useSelectedMediaIds(projectId);
   const sources = media.data?.filter((item) => selected.includes(item.id)) ?? [];
 
-  if (media.isPending) return <p role="status">Loading source metadata…</p>;
+  if (media.isPending) return <p role="status">Loading your footage…</p>;
   if (media.isError) {
     return (
       <div>
-        <p role="alert">Could not load source metadata.</p>
-        <button type="button" className="button button-secondary" onClick={() => void media.refetch()}>Retry metadata</button>
+        <p role="alert">We couldn’t load your footage details.</p>
+        <button type="button" className="button button-secondary" onClick={() => void media.refetch()}>Try again</button>
       </div>
     );
   }
   if (!sources.length) {
-    return <p>Choose saved footage in the Media Pool to inspect its source metadata.</p>;
+    return <p>Pick footage in Media Library to see its details here.</p>;
   }
 
   return (
     <div className="studio-inspectorSources">
-      <p className="studio-overline">{sources.length} selected source{sources.length === 1 ? "" : "s"}</p>
+      <p className="studio-overline">{sources.length} video{sources.length === 1 ? "" : "s"} picked</p>
       {sources.map((source) => (
         <article key={source.id} className="studio-inspectorSource">
           <h3>{source.original_filename}</h3>
           <dl>
-            <div><dt>Duration</dt><dd className="technical">{source.duration_seconds.toFixed(3)} s</dd></div>
-            <div><dt>Resolution</dt><dd>{source.video.width} × {source.video.height}</dd></div>
-            <div><dt>Video codec</dt><dd>{source.video.codec}</dd></div>
+            <div><dt>Length</dt><dd className="technical">{source.duration_seconds.toFixed(1)} seconds</dd></div>
+            <div><dt>Picture size</dt><dd>{source.video.width} × {source.video.height}</dd></div>
             <div><dt>File size</dt><dd>{formatBytes(source.size_bytes)}</dd></div>
-            <div><dt>Media ID</dt><dd className="studio-sourceId technical">{source.id}</dd></div>
           </dl>
+          <details>
+            <summary>Details for support</summary>
+            <p className="studio-sourceId technical">{source.id} · {source.video.codec}</p>
+          </details>
         </article>
       ))}
-      <p>Source metadata is read-only. Selection is used by AI Story Director.</p>
+      <p>These details never change. What you tick in Media Library is what AI Director will use.</p>
     </div>
   );
 }
@@ -66,22 +68,19 @@ function CutInspector({ projectId }: { projectId: string }) {
   const media = useProjectMedia(projectId);
   const index = draft?.cuts.findIndex((cut) => cut.id === draft.selectedId) ?? -1;
   const cut = draft?.cuts[index];
-  if (!draft || !cut) return <><p>Select a timeline cut to inspect and edit its draft playback order.</p><SourceInspector projectId={projectId} /></>;
+  if (!draft || !cut) return <><p>Tap a moment in Timeline to see where it came from.</p><SourceInspector projectId={projectId} /></>;
   const source = media.data?.find((item) => item.id === cut.media_id);
   return <article className="studio-inspectorSource">
-    <h3>Cut {index + 1}</h3>
+    <h3>Moment {index + 1}</h3>
     <dl>
-      <div><dt>Source</dt><dd>{source?.original_filename ?? "Source filename unavailable"}</dd></div>
-      <div><dt>Media ID</dt><dd className="studio-sourceId technical">{cut.media_id ?? "Not supplied"}</dd></div>
-      <div><dt>Source range</dt><dd>{cut.start_seconds.toFixed(6)} – {cut.end_seconds.toFixed(6)} s</dd></div>
-      <div><dt>Source duration</dt><dd>{(cut.end_seconds - cut.start_seconds).toFixed(6)} s</dd></div>
-      <div><dt>Draft playback order</dt><dd>{index + 1} of {draft.cuts.length}</dd></div>
-      <div><dt>Published playback index</dt><dd>{cut.playback_order ?? "Not supplied"}</dd></div>
-      <div><dt>Source window index</dt><dd>{cut.source_window_index ?? "Not supplied"}</dd></div>
-      <div><dt>Editorial reason</dt><dd>{cut.editorial_reason ?? "Not supplied by this storyboard"}</dd></div>
+      <div><dt>From</dt><dd>{source?.original_filename ?? "Your footage"}</dd></div>
+      <div><dt>Where in your footage</dt><dd>{cut.start_seconds.toFixed(1)}s – {cut.end_seconds.toFixed(1)}s</dd></div>
+      <div><dt>Length</dt><dd>{(cut.end_seconds - cut.start_seconds).toFixed(1)} seconds</dd></div>
+      <div><dt>Plays</dt><dd>{index + 1} of {draft.cuts.length} in your story</dd></div>
+      <div><dt>Why it’s here</dt><dd>{cut.editorial_reason ?? "Picked to tell your story."}</dd></div>
     </dl>
     <DraftControls projectId={projectId} draft={draft} />
-    <p className="studio-storyboardNote">Source ranges are read-only. Editing affects the working draft; save and render to produce a new video version.</p>
+    <p className="studio-storyboardNote">Where a moment comes from never changes. Reordering only changes this draft — save, then make a new video to watch it.</p>
   </article>;
 }
 
@@ -115,7 +114,7 @@ export function StudioDock({ projectId }: { projectId?: string }) {
               buttons.current[next]?.focus();
             }}
           >
-            {tab === "director" ? "AI Story Director" : tab === "inspector" ? "Inspector" : tab === "captions" ? "Captions" : tab === "visuals" ? "AI Visuals" : "Highlights"}
+            {tab === "director" ? "AI Director" : tab === "inspector" ? "Details" : tab === "captions" ? "Captions" : tab === "visuals" ? "AI Visuals" : "Highlights"}
           </button>
         ))}
       </div>
@@ -125,9 +124,9 @@ export function StudioDock({ projectId }: { projectId?: string }) {
         <AIDirector projectId={projectId} />
       </div>
       <div className="studio-dockPanel studio-inspector" id="dock-panel-inspector" role="tabpanel" aria-labelledby="dock-tab-inspector" tabIndex={0} hidden={active !== "inspector"}>
-        <header className="studio-panelHeader"><h2>Inspector</h2><span>Draft / source</span></header>
+        <header className="studio-panelHeader"><h2>Details</h2><span>About this moment</span></header>
         <div className="studio-inspectorBody">
-          {projectId ? <CutInspector key={projectId} projectId={projectId} /> : <p>Open a project to inspect its saved footage.</p>}
+          {projectId ? <CutInspector key={projectId} projectId={projectId} /> : <p>Open a project to see details here.</p>}
         </div>
       </div>
       <div className="studio-dockPanel" id="dock-panel-captions" role="tabpanel" aria-labelledby="dock-tab-captions" tabIndex={0} hidden={active !== "captions"}>

@@ -24,13 +24,13 @@ export function ConnectedDirector({
   return (
     <div className="studio-directorBody">
       {!director.jobId && <>
-      <p className="studio-overline">From intention to story</p>
+      <p className="studio-overline">Your story, your direction</p>
 
       <h3>Direct your first cut.</h3>
 
       <p>
-        Tell IntentCut what you want your footage to communicate.
-        Muse Spark will help develop the editing plan.
+        Tell your AI Director what you want your footage to say.
+        It will shape the story with you.
       </p>
       </>}
 
@@ -39,14 +39,14 @@ export function ConnectedDirector({
       {director.jobId && <JobStatus key={director.jobId} projectId={projectId} jobId={director.jobId} />}
 
       <details className="processing-request" open={director.jobId ? undefined : true}>
-      <summary>First-cut settings</summary>
+      <summary>Your first cut</summary>
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">
         <div className="space-y-2">
           <label
             htmlFor="creative-intent"
             className="block text-sm font-medium"
           >
-            Creative brief
+            Your story idea
           </label>
 
           <textarea
@@ -72,7 +72,7 @@ export function ConnectedDirector({
             htmlFor="target-duration"
             className="block text-sm font-medium"
           >
-            Target duration (seconds)
+            How long should it be? (seconds)
           </label>
 
           <input
@@ -90,20 +90,20 @@ export function ConnectedDirector({
         </div>
 
         <p role="status" className="studio-availability">
-          {director.selectedCount} saved videos selected.
+          {director.selectedCount} saved video{director.selectedCount === 1 ? "" : "s"} selected.
         </p>
 
         {!director.selectionValid && (
           <p className="text-xs text-muted-foreground">
             {director.mediaLoading
-              ? "Checking saved footage..."
-              : "Select saved project footage before generating."}
+              ? "Checking your footage…"
+              : "Pick footage in Media Library first — tick “Use in my first cut”."}
           </p>
         )}
 
         {director.mediaError && (
           <p role="alert" className="media-errors">
-            Could not verify saved footage.
+            We couldn’t check your footage. Your picks are kept — try again.
           </p>
         )}
 
@@ -113,8 +113,8 @@ export function ConnectedDirector({
           className="button button-primary w-full disabled:opacity-50"
         >
           {director.isSubmitting
-            ? "Submitting first cut..."
-            : "Generate First Cut"}
+            ? "Creating your first cut…"
+            : "Create my first cut"}
         </button>
       </form>
       </details>
@@ -123,16 +123,16 @@ export function ConnectedDirector({
         <p role="alert" className="media-errors mt-4">
           {director.submitError instanceof Error
             ? director.submitError.message
-            : "Could not submit AI job."}
+            : "We couldn’t start your first cut. Nothing was started — you can try again."}
         </p>
       )}
 
       {director.uncertain && (
         <div className="media-errors mt-3">
           <p>
-            The backend may have accepted this job.
-            Check the server before submitting again
-            to avoid duplicate AI processing.
+            Your first cut may already have started.
+            Look for it above before starting again,
+            so you don’t pay for the same work twice.
           </p>
 
           <button
@@ -140,7 +140,7 @@ export function ConnectedDirector({
             className="button button-secondary mt-2"
             onClick={director.acknowledgeUncertain}
           >
-            I checked; allow another submission
+            I checked — start again
           </button>
         </div>
       )}
@@ -151,7 +151,7 @@ export function ConnectedDirector({
           className="mt-4 text-xs underline underline-offset-4"
           onClick={director.resumeLastJob}
         >
-          Resume last accepted job
+          Reopen my last cut
         </button>
       )}
     </div>

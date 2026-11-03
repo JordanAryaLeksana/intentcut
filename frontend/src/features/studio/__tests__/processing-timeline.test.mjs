@@ -28,8 +28,8 @@ const settle = () => new Promise(resolve=>setTimeout(resolve,10));
 
 test("queued acceptance is separate from active processing and has no invented counts", () => {
   const html=render(queued);
-  assert.match(html,/Request accepted/);assert.match(html,/Accepted · waiting/);
-  assert.match(html,/Processing has not started/);assert.match(html,/5:00/);
+  assert.match(html,/Request received/);assert.match(html,/Waiting to start/);
+  assert.match(html,/waiting its turn/);assert.match(html,/5:00/);
   assert.doesNotMatch(html,/aria-current|windows validated|\d+%|\bETA\b|offline|estimated/i);
 });
 
@@ -41,14 +41,14 @@ test("running displays only the actual active stage without inventing completed 
     assert.equal((html.match(/data-state="complete"/g)||[]).length,1); // acceptance only
     assert.doesNotMatch(html,/\d+%|ETA|estimated|Remaining/);
   }
-  assert.doesNotMatch(render(running("rendering_video")),/Understanding footage|Selecting the story/);
+  assert.doesNotMatch(render(running("rendering_video")),/Watching your footage|Choosing your story/);
 });
 
-test("window counts come from the backend, including zero completed", () => {
+test("moment counts come from the backend, including zero completed", () => {
   for (const completed of [0,1,2]) {
-    assert.match(render(running("understanding_footage",{completed_windows:completed,total_windows:2})),new RegExp(`${completed} of 2 windows validated`));
+    assert.match(render(running("understanding_footage",{completed_windows:completed,total_windows:2})),new RegExp(`${completed} of 2 moments checked`));
   }
-  assert.doesNotMatch(render({...running(),progress:null}),/windows validated/);
+  assert.doesNotMatch(render({...running(),progress:null}),/moments checked/);
 });
 
 test("elapsed time includes queue wait and does not reset with stage changes", () => {
@@ -61,17 +61,17 @@ test("elapsed time includes queue wait and does not reset with stage changes", (
 
 test("historical and expired-stage snapshots do not fabricate activity", () => {
   const html=render({...running(),progress:undefined});
-  assert.match(html,/Current stage unavailable/);assert.doesNotMatch(html,/aria-current|Preparing media/);
+  assert.match(html,/Creating your video/);assert.doesNotMatch(html,/aria-current|Getting your footage ready/);
   const ready=render({...queued,status:"succeeded",finished_at:at(8)});
-  assert.match(ready,/First cut ready/);assert.match(ready,/View first cut/);assert.match(ready,/8:00/);
-  assert.doesNotMatch(ready,/Preparing media|windows validated/);
+  assert.match(ready,/Your first cut is ready/);assert.match(ready,/Watch your video/);assert.match(ready,/8:00/);
+  assert.doesNotMatch(ready,/Getting your footage ready|moments checked/);
 });
 
 test("failure retains only same-attempt observations, and not a claimed failure stage", () => {
   const observed=observeJob(undefined,running("rendering_video"));
   const failed=observeJob(observed,{...observed,status:"failed",progress:null,finished_at:at(4),error_code:"private-error-secret"});
   const html=render(failed);
-  assert.match(html,/First cut failed/);assert.match(html,/Last reported stage this session: Rendering video/);
+  assert.match(html,/We couldn’t create your first cut/);assert.match(html,/Last step we saw: Putting your video together/);
   assert.doesNotMatch(html,/private-error-secret|aria-current/);
   assert.equal(observeJob(undefined,{...failed,lastObservedProgress:undefined}).lastObservedProgress,undefined);
   assert.equal(observeJob(observed,{...running(),id:other,progress:null}).lastObservedProgress,undefined);
@@ -82,7 +82,7 @@ test("failure retains only same-attempt observations, and not a claimed failure 
 
 test("failed refresh does not portray a cached stage as currently active", () => {
   const html=render(running("understanding_footage",{completed_windows:1,total_windows:2}),Date.parse(at(5)),true);
-  assert.match(html,/Status check interrupted/);assert.doesNotMatch(html,/aria-current|windows validated/);
+  assert.match(html,/We lost touch/);assert.doesNotMatch(html,/aria-current|moments checked/);
 });
 
 test("progress parser rejects unknown stages, invalid timestamps and invalid counters", () => {

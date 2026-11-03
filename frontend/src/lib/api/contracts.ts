@@ -2,6 +2,8 @@
 export interface Project {
   id: string;
   name: string;
+  /** Readable URL slug; null only before the slug migration runs. */
+  slug: string | null;
   created_at: string;
 }
 

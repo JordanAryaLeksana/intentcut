@@ -37,19 +37,17 @@ export function StoryboardViewer({
         aria-expanded={expanded}
         onClick={() => setExpanded((value) => !value)}
       >
-        {expanded ? "Hide storyboard" : "View storyboard"}
+        {expanded ? "Hide story plan" : "See story plan"}
       </button>
 
       {expanded && storyboard.isPending && (
-        <p role="status">Loading storyboard...</p>
+        <p role="status">Loading your story plan…</p>
       )}
 
       {expanded && storyboard.isError && (
         <div className="space-y-2">
           <p role="alert" className="media-errors">
-            {storyboard.error instanceof Error
-              ? storyboard.error.message
-              : "Unable to load storyboard."}
+            We couldn’t load your story plan. Your video is saved — try again.
           </p>
 
           <button
@@ -57,7 +55,7 @@ export function StoryboardViewer({
             className="button button-secondary"
             onClick={() => void storyboard.refetch()}
           >
-            Retry
+            Try again
           </button>
         </div>
       )}
@@ -66,29 +64,29 @@ export function StoryboardViewer({
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div>
-              <p className="text-muted-foreground">Target</p>
+              <p className="text-muted-foreground">You asked for</p>
               <p>{formatSeconds(storyboard.data.target_seconds)}</p>
             </div>
 
             <div>
-              <p className="text-muted-foreground">Planned cuts</p>
+              <p className="text-muted-foreground">Your story so far</p>
               <p>{formatSeconds(storyboard.data.total_seconds)}</p>
             </div>
 
             {storyboard.data.render_seconds !== undefined && (
               <div>
-                <p className="text-muted-foreground">Render duration</p>
+                <p className="text-muted-foreground">Finished video</p>
                 <p>{formatSeconds(storyboard.data.render_seconds)}</p>
               </div>
             )}
 
             <div>
-              <p className="text-muted-foreground">Cut count</p>
+              <p className="text-muted-foreground">Moments</p>
               <p>{storyboard.data.cuts.length}</p>
             </div>
           </div>
 
-          <ol className="space-y-3" aria-label="Storyboard cuts">
+          <ol className="space-y-3" aria-label="Your story in order">
             {storyboard.data.cuts.map((cut, index) => (
               <li
                 key={cut.window_index}
@@ -96,7 +94,7 @@ export function StoryboardViewer({
               >
                 <div className="flex items-center justify-between gap-2">
                   <h5 className="text-sm font-medium">
-                    Cut {String(index + 1).padStart(2, "0")}
+                    Moment {index + 1}
                   </h5>
 
                   <span className="text-xs text-muted-foreground">
@@ -107,31 +105,15 @@ export function StoryboardViewer({
                 </div>
 
                 <p className="mt-2 text-xs">
-                  Source range:{" "}
+                  From your footage:{" "}
                   {formatSeconds(cut.start_seconds)}
                   {" – "}
                   {formatSeconds(cut.end_seconds)}
                 </p>
 
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Window index: {cut.window_index}
-                </p>
-
-                {cut.source_window_index !== undefined && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Source window: {cut.source_window_index}
-                  </p>
-                )}
-
                 {cut.playback_order !== undefined && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Playback order: {cut.playback_order}
-                  </p>
-                )}
-
-                {cut.media_id && (
-                  <p className="mt-2 break-all text-xs text-muted-foreground">
-                    Media ID: {cut.media_id}
+                    Plays {cut.playback_order + 1} in your story
                   </p>
                 )}
               </li>
@@ -139,9 +121,7 @@ export function StoryboardViewer({
           </ol>
 
           <p className="text-xs text-muted-foreground">
-            Source ranges and cut metadata come from
-            the published storyboard. Exact synchronization
-            with the rendered MP4 is not available yet.
+            Times show where each moment comes from in your footage.
           </p>
         </div>
       )}

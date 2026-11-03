@@ -23,7 +23,7 @@ export function TimelineMessage({
       <div>
         <h3 role={retry ? "alert" : "status"}>{title}</h3>
         <p>{children}</p>
-        {retry && <button type="button" className="button button-secondary studio-timelineRetry" onClick={retry}>Retry retrieval</button>}
+        {retry && <button type="button" className="button button-secondary studio-timelineRetry" onClick={retry}>Try again</button>}
       </div>
     </div>
   );
@@ -31,31 +31,30 @@ export function TimelineMessage({
 
 export function StoryboardCuts({ storyboard }: { storyboard: PublicStoryboard }) {
   return (
-    <div className="studio-storyboard" role="region" aria-label="Published storyboard sequence" tabIndex={0}>
+    <div className="studio-storyboard" role="region" aria-label="Your story in order" tabIndex={0}>
       <p className="studio-storyboardSummary" role="status">
-        {storyboard.cuts.length} scenes · Planned cuts {storyboard.total_seconds.toFixed(2)}s
+        {storyboard.cuts.length} moments · {storyboard.total_seconds.toFixed(1)} seconds of story
       </p>
       <ol
         className="studio-cutList"
-        aria-label="Narrative storyboard cuts"
+        aria-label="Your story in order"
         style={{
           "--cut-tracks": storyboard.cuts.map((cut) => `${cut.end_seconds - cut.start_seconds}fr`).join(" "),
           "--sequence-min-width": `${storyboard.total_seconds * 76}px`,
         } as CSSProperties}
       >
         {storyboard.cuts.map((cut, index) => (
-          <li key={cut.window_index} className="studio-cut" title={`Cut ${index + 1} · Source ${cut.start_seconds.toFixed(2)}s – ${cut.end_seconds.toFixed(2)}s`}>
+          <li key={cut.window_index} className="studio-cut" title={`Moment ${index + 1} · From your footage at ${cut.start_seconds.toFixed(1)}s`}>
             <div className="studio-cutHeading">
-              <h3>Cut {index + 1}</h3>
-              <span className="technical">{(cut.end_seconds - cut.start_seconds).toFixed(2)}s</span>
+              <h3>Moment {index + 1}</h3>
+              <span className="technical">{(cut.end_seconds - cut.start_seconds).toFixed(1)}s</span>
             </div>
-            <p>Source: {cut.start_seconds.toFixed(2)}s – {cut.end_seconds.toFixed(2)}s</p>
-            {cut.playback_order !== undefined && <p>Playback order: {cut.playback_order}</p>}
-            {cut.media_id && <p className="studio-cutMedia">Media: {cut.media_id}</p>}
+            <p>From your footage: {cut.start_seconds.toFixed(1)}s – {cut.end_seconds.toFixed(1)}s</p>
+            {cut.playback_order !== undefined && <p>Plays {cut.playback_order + 1} in your story</p>}
           </li>
         ))}
       </ol>
-      <p className="studio-storyboardNote">Read-only storyboard · Source ranges describe original footage. Exact synchronization with the rendered video is unavailable.</p>
+      <p className="studio-storyboardNote">This is your story plan. The times show where each moment comes from in your footage.</p>
     </div>
   );
 }
@@ -66,31 +65,31 @@ function LoadedStoryboard({ projectId, jobId, artifactId }: { projectId: string;
   useEffect(() => {
     if (storyboard.data && useEditorStore.getState().activeJobByProject[projectId] === jobId) receive(projectId, { jobId, artifactId }, storyboard.data);
   }, [projectId, jobId, artifactId, storyboard.data, receive]);
-  if (storyboard.isError) return <TimelineMessage title="Could not load storyboard" retry={() => void storyboard.refetch()}>Storyboard retrieval or validation failed. Retry to retrieve the existing artifact.</TimelineMessage>;
-  if (storyboard.isPending) return <TimelineMessage title="Loading storyboard">Retrieving published cuts…</TimelineMessage>;
+  if (storyboard.isError) return <TimelineMessage title="We couldn’t load your story plan" retry={() => void storyboard.refetch()}>Your video is saved. Try again to see the plan — nothing will be created again.</TimelineMessage>;
+  if (storyboard.isPending) return <TimelineMessage title="Loading your story">Opening your story plan…</TimelineMessage>;
   return <StoryboardCuts storyboard={storyboard.data} />;
 }
 
 function JobStoryboard({ projectId, jobId }: { projectId: string; jobId: string }) {
   const artifacts = useAIArtifacts(projectId, jobId);
-  if (artifacts.isError) return <TimelineMessage title="Could not retrieve artifacts" retry={() => void artifacts.refetch()}>Retry to check the existing job’s artifacts.</TimelineMessage>;
-  if (artifacts.isPending) return <TimelineMessage title="Loading storyboard">Checking generated artifacts…</TimelineMessage>;
+  if (artifacts.isError) return <TimelineMessage title="We couldn’t check your video" retry={() => void artifacts.refetch()}>Try again to check what’s already made — nothing new will start.</TimelineMessage>;
+  if (artifacts.isPending) return <TimelineMessage title="Loading your story">Checking what’s already made…</TimelineMessage>;
   const storyboard = artifacts.data.items.find((artifact) => artifact.kind === "storyboard");
-  if (!storyboard) return <TimelineMessage title="No storyboard artifact available" retry={() => void artifacts.refetch()}>This job succeeded but returned no storyboard. Check again without generating another cut.</TimelineMessage>;
+  if (!storyboard) return <TimelineMessage title="Your story plan is missing" retry={() => void artifacts.refetch()}>Your video finished, but its story plan didn’t come back. Check again — don’t create another cut yet.</TimelineMessage>;
   return <LoadedStoryboard key={storyboard.id} projectId={projectId} jobId={jobId} artifactId={storyboard.id} />;
 }
 
 export function JobTimeline({ projectId, jobId }: { projectId: string; jobId: string }) {
   const job = useAIJobStatus(projectId, jobId);
-  // Published cuts remain readable if only the job-status refresh fails.
-  if (job.isError && job.data?.status !== "succeeded") return <TimelineMessage title="Could not retrieve job status" retry={() => void job.refetch()}>The saved job may be unavailable or deleted. No new job has been submitted.</TimelineMessage>;
-  if (!job.data) return <TimelineMessage title="Loading job status">Checking the selected first cut…</TimelineMessage>;
+  // Your story stays readable if only the progress check fails.
+  if (job.isError && job.data?.status !== "succeeded") return <TimelineMessage title="We couldn’t check on your video" retry={() => void job.refetch()}>Your saved work may still be there. Nothing new was started.</TimelineMessage>;
+  if (!job.data) return <TimelineMessage title="Loading your video">Checking on your first cut…</TimelineMessage>;
   switch (job.data.status) {
-    case "queued": return <TimelineMessage title="First cut queued">Your storyboard will appear after processing succeeds.</TimelineMessage>;
-    case "running": return <TimelineMessage title="First cut processing">Your storyboard is being prepared.</TimelineMessage>;
-    case "failed": return <TimelineMessage title="First cut failed">No storyboard is available for this failed job. Review AI Director for details.</TimelineMessage>;
+    case "queued": return <TimelineMessage title="Waiting to create your video">Your story will appear here when it is ready.</TimelineMessage>;
+    case "running": return <TimelineMessage title="Creating your video">We are putting your story together…</TimelineMessage>;
+    case "failed": return <TimelineMessage title="Your video couldn’t be created">Open AI Director to see what happened and try again.</TimelineMessage>;
     case "succeeded": return <JobStoryboard projectId={projectId} jobId={jobId} />;
-    default: return <TimelineMessage title="Job status unavailable">The selected job returned an unsupported status.</TimelineMessage>;
+    default: return <TimelineMessage title="We couldn’t read that update">Your video sent back something we don’t understand. Try checking again.</TimelineMessage>;
   }
 }
 
@@ -102,28 +101,28 @@ function ConnectedTimeline({ projectId }: { projectId: string }) {
   const saved = useQuery(savedDraftOptions(projectId));
   useEffect(() => {if (saved.isSuccess) restore(projectId, saved.data);}, [projectId, restore, saved.isSuccess, saved.data]);
   if (!restored) {
-    if (saved.isError) return <TimelineMessage title="Could not restore saved draft" retry={() => void saved.refetch()}>Your saved edits have not been replaced. Retry before editing this project.</TimelineMessage>;
-    return <TimelineMessage title="Restoring saved draft">Checking persistent project edits…</TimelineMessage>;
+    if (saved.isError) return <TimelineMessage title="We couldn’t reopen your draft" retry={() => void saved.refetch()}>Your saved edits are still saved. Try again before you keep editing.</TimelineMessage>;
+    return <TimelineMessage title="Reopening your draft">Bringing back your saved edits…</TimelineMessage>;
   }
   return <>
     {draft && <DraftTimeline projectId={projectId} draft={draft} />}
     <div hidden={Boolean(draft)} style={draft ? undefined : { display: "contents" }}>
       {jobId
         ? <JobTimeline key={jobId} projectId={projectId} jobId={jobId} />
-        : <TimelineMessage title="No active first cut">Generate a first cut using AI Director to see its storyboard here.</TimelineMessage>}
+        : <TimelineMessage title="No video yet">Create your first cut with AI Director to see your story here.</TimelineMessage>}
     </div>
   </>;
 }
 
 export function NarrativeTimeline({ projectId }: { projectId?: string }) {
   return (
-    <section className="studio-panel studio-timeline" aria-labelledby="timeline-heading">
-      <header className="studio-panelHeader"><h2 id="timeline-heading">Narrative Timeline</h2><span>Working draft · Versioned saves</span></header>
+    <section className="studio-panel studio-timeline" aria-labelledby="timeline-heading" data-tour="timeline">
+      <header className="studio-panelHeader"><h2 id="timeline-heading">Timeline</h2><span>Review and refine your edit</span></header>
       <div className="studio-timelineBody">
-        <div className="studio-trackLabel"><span className="studio-overline">Story sequence</span><span>Draft cuts</span></div>
+        <div className="studio-trackLabel"><span className="studio-overline">Your story</span><span>Moments in order</span></div>
         {projectId
           ? <ConnectedTimeline key={projectId} projectId={projectId} />
-          : <TimelineMessage title="Every story starts with a first scene">Open a project to view its storyboard.</TimelineMessage>}
+          : <TimelineMessage title="Every story starts with a first scene">Open a project to see your story here.</TimelineMessage>}
       </div>
     </section>
   );

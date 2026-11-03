@@ -68,7 +68,7 @@ test("render versions poll only active jobs and allow selecting historical outpu
   const older="11111111-1111-4111-8111-111111111111";
   c.setQueryData(renderVersionsKey(project),[{job_id:job,revision:3,status:"succeeded"},{job_id:older,revision:2,status:"succeeded"}]);
   const html=renderToStaticMarkup(createElement(QueryClientProvider,{client:c},createElement(RenderVersionPicker,{projectId:project})));
-  assert.match(html,/Original AI first cut/);assert.match(html,/Draft revision 3/);assert.match(html,/Draft revision 2/);
+  assert.match(html,/Your first cut/);assert.match(html,/Version 3/);assert.match(html,/Version 2/);
   store().setPreview(project,older);assert.equal(store().previewByProject[project],older);
   store().setPreview(project,null);assert.equal(store().previewByProject[project],null);
   const options=renderVersionsOptions(project);

@@ -10,7 +10,7 @@ def test_project_create_validates_and_trims_name(client):
     result = client.post("/projects", json={"name": "  My story  "})
     assert result.status_code == 201
     assert result.json()["name"] == "My story"
-    assert set(result.json()) == {"id", "name", "created_at"}
+    assert set(result.json()) == {"id", "name", "slug", "created_at"}
 
 
 @pytest.mark.parametrize(
