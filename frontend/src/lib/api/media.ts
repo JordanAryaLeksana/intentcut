@@ -15,9 +15,8 @@ import {
 
 const PAGE_SIZE = 100;
 const MAX_FILES = 10;
-const MAX_FILE_BYTES = 128 * 1024 ** 2;
-// Preserve the deliberately conservative UI cap from M3.2 (backend allows 512 MiB).
-const MAX_REQUEST_BYTES = 500 * 1024 ** 2;
+const MAX_FILE_BYTES = 10 * 1024 ** 3;
+const MAX_REQUEST_BYTES = 11 * 1024 ** 3;
 
 function mediaPath(projectId: string): string {
   return `/projects/${requireUUID(projectId, "project")}/media`;
@@ -111,7 +110,7 @@ export async function uploadMedia(
     files.reduce((sum, file) => sum + file.size, 0) > MAX_REQUEST_BYTES
   ) {
     throw new ApiError(
-      "Upload 1–10 videos, up to 128 MiB each and 500 MiB total.",
+      "Upload 1–10 videos,  up to 10 GiB each and 11 GiB total.",
       0,
       "upload_limit",
     );
