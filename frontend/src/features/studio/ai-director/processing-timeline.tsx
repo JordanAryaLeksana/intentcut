@@ -29,54 +29,54 @@ export function ProcessingTimeline({ job, now = null, unconfirmed = false }: {
   const terminal = job.status === "succeeded" || job.status === "failed";
   const progress = !unconfirmed && job.status === "running" ? job.progress : null;
   const stage = progress ? STAGE_COPY[progress.stage] : null;
-  const title = unconfirmed ? "Status check interrupted"
-    : job.status === "queued" ? "Accepted · waiting"
-    : job.status === "succeeded" ? "First cut ready"
-    : job.status === "failed" ? "First cut failed"
-    : stage?.title ?? "Current stage unavailable";
-  const description = unconfirmed ? "Showing the last confirmed job update. Refresh to check the current status."
-    : job.status === "queued" ? "Your request is queued. Processing has not started."
-    : job.status === "succeeded" ? "Processing succeeded. Your generated first cut is ready to review."
+  const title = unconfirmed ? "We lost touch — showing your last update"
+    : job.status === "queued" ? "Waiting to start"
+    : job.status === "succeeded" ? "Your first cut is ready"
+    : job.status === "failed" ? "We couldn’t create your first cut"
+    : stage?.title ?? "Creating your video…";
+  const description = unconfirmed ? "This is the last update we could confirm. Check again to see where things stand."
+    : job.status === "queued" ? "Your video is waiting its turn. We’ll start as soon as we can."
+    : job.status === "succeeded" ? "Your first cut is ready to watch and refine below."
     : job.status === "failed" ? failureDescription(job.error_code)
-    : stage?.description ?? "The job is marked running, but current processing details are unavailable.";
+    : stage?.description ?? "Your video is being created. New details will appear here.";
   const count = progress?.completed_windows != null && progress.total_windows != null
-    ? `${progress.completed_windows} of ${progress.total_windows} windows validated` : null;
+    ? `${progress.completed_windows} of ${progress.total_windows} moments checked` : null;
 
   return (
-    <section className="processing-timeline" aria-label="AI processing timeline">
+    <section className="processing-timeline" aria-label="Creating your video">
       <div className="processing-summary" role="status" aria-live="polite" aria-atomic="true">
-        <span className="studio-overline">AI processing timeline</span>
+        <span className="studio-overline">Creating your video</span>
         <h3>{title}</h3>
         <p>{description}</p>
         {count && <p className="processing-windowCount technical">{count}</p>}
       </div>
       <dl className="processing-timing">
-        <div><dt>Elapsed since accepted</dt><dd className="technical">{formatElapsed(elapsedSeconds(job, now))}</dd></div>
-        <div><dt>Attempt</dt><dd className="technical">{job.attempt_count}</dd></div>
+        <div><dt>Time so far</dt><dd className="technical">{formatElapsed(elapsedSeconds(job, now))}</dd></div>
+        <div><dt>Try</dt><dd className="technical">{job.attempt_count}</dd></div>
       </dl>
-      <ol className="processing-milestones" aria-label="Confirmed processing milestones">
+      <ol className="processing-milestones" aria-label="How your video is coming along">
         <li data-state="complete">
-          <h4>Request accepted</h4><Timestamp value={job.created_at} />
+          <h4>Request received</h4><Timestamp value={job.created_at} />
         </li>
         <li data-state={unconfirmed ? "unknown" : job.status === "queued" ? "waiting" : progress ? "active" : job.status === "succeeded" ? "complete" : "unknown"} aria-current={progress ? "step" : undefined}>
-          <h4>{job.status === "queued" ? "Waiting for processing" : "Processing attempt"}</h4>
-          {job.status === "queued" ? <p>Waiting in the job queue.</p> : <Timestamp value={job.started_at} />}
+          <h4>{job.status === "queued" ? "Waiting to start" : "Creating your video"}</h4>
+          {job.status === "queued" ? <p>Your video is waiting its turn.</p> : <Timestamp value={job.started_at} />}
           {progress && <p>{stage?.title} · Started <Timestamp value={progress.stage_started_at} /></p>}
         </li>
         {terminal && (
           <li data-state={job.status === "succeeded" ? "complete" : "failed"}>
-            <h4>{job.status === "succeeded" ? "First cut rendered" : "Attempt failed"}</h4>
+            <h4>{job.status === "succeeded" ? "Your video is ready" : "This try didn’t finish"}</h4>
             <Timestamp value={job.finished_at} />
           </li>
         )}
       </ol>
       {job.status === "failed" && job.lastObservedProgress && (
-        <p className="processing-lastStage">Last reported stage this session: {STAGE_COPY[job.lastObservedProgress.stage].title}. This does not identify the failure cause.</p>
+        <p className="processing-lastStage">Last step we saw: {STAGE_COPY[job.lastObservedProgress.stage].title}. That alone doesn’t tell us why it stopped.</p>
       )}
       {job.status === "succeeded" && !unconfirmed && (
-        <a className="button button-primary processing-viewCut" href="#monitor-heading">View first cut</a>
+        <a className="button button-primary processing-viewCut" href="#monitor-heading">Watch your video</a>
       )}
-      <details className="processing-jobId"><summary>Job reference</summary><p className="technical">{job.id}</p></details>
+      <details className="processing-jobId"><summary>Details for support</summary><p className="technical">{job.id}</p></details>
     </section>
   );
 }

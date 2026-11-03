@@ -61,14 +61,14 @@ function RenderedMonitor({
   const selected = useCaptionStore(state=>state.previews[projectId]);
 
   if (artifacts.isPending) {
-    return <MonitorPlaceholder message="Loading rendered video metadata..." />;
+    return <MonitorPlaceholder message="Loading your video…" />;
   }
 
   if (artifacts.isError) {
     return (
       <div className="space-y-3">
         <p role="alert" className="media-errors">
-          Could not load generated artifacts.
+          We couldn’t load your video. Your work is saved — try again.
         </p>
 
         <button
@@ -76,7 +76,7 @@ function RenderedMonitor({
           className="button button-secondary"
           onClick={() => void artifacts.refetch()}
         >
-          Retry
+          Try again
         </button>
       </div>
     );
@@ -87,7 +87,7 @@ function RenderedMonitor({
   if (!video) {
     return (
       <MonitorPlaceholder
-        message="No video artifact is available for this job."
+        message="Your video isn’t ready to watch yet."
       />
     );
   }
@@ -114,12 +114,12 @@ function JobMonitor({
 }) {
   const job = useAIJobStatus(projectId, jobId);
 
-  // A refresh failure must not tear down an already confirmed rendered preview.
+  // A refresh failure must not tear down an already confirmed preview.
   if (job.isError && job.data?.status !== "succeeded") {
     return (
       <div className="space-y-3">
         <p role="alert" className="media-errors">
-          Unable to retrieve the active job status.
+          We couldn’t check on your video. It may still be on its way.
         </p>
 
         <button
@@ -127,7 +127,7 @@ function JobMonitor({
           className="button button-secondary"
           onClick={() => void job.refetch()}
         >
-          Retry status check
+          Check again
         </button>
       </div>
     );
@@ -144,23 +144,23 @@ function JobMonitor({
 
   if (job.data?.status === "failed") {
     return (
-      <MonitorPlaceholder message="The selected render failed. Review job details before retrying." />
+      <MonitorPlaceholder message="This video couldn’t be created. Open AI Director to see what happened." />
     );
   }
 
   if (job.data?.status === "running") {
     return (
-      <MonitorPlaceholder message="The selected video is being processed..." />
+      <MonitorPlaceholder message="Your video is being created…" />
     );
   }
 
   if (job.data?.status === "queued") {
     return (
-      <MonitorPlaceholder message="The selected render is queued for processing." />
+      <MonitorPlaceholder message="Your video is waiting to be created…" />
     );
   }
 
-  return <MonitorPlaceholder message="Loading first cut status..." />;
+  return <MonitorPlaceholder message="Checking on your video…" />;
 }
 
 function ConnectedProgramMonitor({
@@ -174,7 +174,7 @@ function ConnectedProgramMonitor({
 
   if (!jobId) {
     return (
-      <MonitorPlaceholder message="Generate your first cut using AI Director." />
+      <MonitorPlaceholder message="Create your first cut with AI Director to watch it here." />
     );
   }
 
@@ -193,8 +193,8 @@ function DraftPreviewNotice({ projectId }: { projectId: string }) {
   const saved = useDraftStore((state) => state.savedByProject[projectId]);
   const {manual} = usePreviewJob(projectId);
   const matches = draft && saved && draftMatchesSaved(draft,saved) && manual?.revision === saved.revision && manual.status === "succeeded";
-  if (captioned) return <span>{captioned.label} · Published rendition</span>;
-  return <span>{manual ? `Draft revision ${manual.revision} · ${manual.status}` : "Original AI MP4"} · {matches ? "Matches saved draft" : "Current edits may differ from preview"}</span>;
+  if (captioned) return <span>{captioned.label} · Ready to watch</span>;
+  return <span>{manual ? `Version ${manual.revision} · ${manual.status === "succeeded" ? "ready" : manual.status}` : "Your first cut"} · {matches ? "This is your saved draft" : "Your edits aren’t in this preview yet"}</span>;
 }
 
 export function ProgramMonitor({
@@ -204,10 +204,11 @@ export function ProgramMonitor({
     <section
       className="studio-panel studio-monitor"
       aria-labelledby="monitor-heading"
+      data-tour="export"
     >
       <header className="studio-panelHeader">
-        <h2 id="monitor-heading" tabIndex={-1}>Program Monitor</h2>
-        {projectId ? <RenderVersionPicker projectId={projectId} /> : <span className="technical">First Cut</span>}
+        <h2 id="monitor-heading" tabIndex={-1}>Preview &amp; Export</h2>
+        {projectId ? <RenderVersionPicker projectId={projectId} /> : <span className="technical">Your first cut</span>}
       </header>
 
       <div className="studio-monitorBody">
@@ -218,8 +219,8 @@ export function ProgramMonitor({
         )}
 
         <div className="studio-monitorMeta">
-          <span>Program view</span>
-          {projectId ? <DraftPreviewNotice projectId={projectId} /> : <span>Published MP4</span>}
+          <span>Watch &amp; download</span>
+          {projectId ? <DraftPreviewNotice projectId={projectId} /> : <span>Your finished video</span>}
         </div>
       </div>
     </section>

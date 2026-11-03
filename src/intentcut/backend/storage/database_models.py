@@ -34,6 +34,9 @@ class Project(Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(200))
+    # Human-friendly URL identity; the UUID above stays canonical/internal.
+    # Nullable only so pre-migration rows remain readable until backfilled.
+    slug: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

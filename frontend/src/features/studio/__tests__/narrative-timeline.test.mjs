@@ -57,49 +57,50 @@ test("five real cuts render automatically in published array order with source d
   const c = client(); seed(c); seedArtifacts(c);
   c.setQueryData(publicStoryboardOptions(project, job, artifact, true).queryKey, parsePublicStoryboard(fixture));
   const html = render(c);
-  assert.match(html, /5 scenes/);
-  assert.match(html, /Planned cuts 18.82s/);
+  assert.match(html, /5 moments/);
+  assert.match(html, /18\.8 seconds of story/);
   assert.equal((html.match(/class="studio-cut"/g) ?? []).length, 5);
-  const ranges = ["10.00s – 13.74s", "0.00s – 5.00s", "5.00s – 10.00s", "10.00s – 11.05s", "10.00s – 14.04s"];
+  const ranges = ["10.0s – 13.7s", "0.0s – 5.0s", "5.0s – 10.0s", "10.0s – 11.1s", "10.0s – 14.0s"];
   let position = -1;
-  for (const range of ranges) { const next = html.indexOf(range); assert.ok(next > position); position = next; }
-  assert.match(html, /3.74s/); assert.match(html, /1.05s/); assert.match(html, /4.04s/);
-  assert.match(html, new RegExp(fixture.cuts[0].media_id));
+  for (const range of ranges) { const next = html.indexOf(range); assert.ok(next > position, range); position = next; }
+  assert.match(html, /3\.7s/);
+  // Internal media IDs never appear in the default creator UI.
+  assert.doesNotMatch(html, new RegExp(fixture.cuts[0].media_id));
   assert.doesNotMatch(html, /View storyboard|editorial_reason|draggable/);
 });
 
 test("no-job, queued, running, failed and loading states are distinct", () => {
   const c = client();
-  assert.match(render(c), /Restoring saved draft/);
+  assert.match(render(c), /Reopening your draft/);
   useEditorStore.setState({ activeJobByProject: { [project]: job } });
-  assert.match(render(c), /Loading job status/);
-  for (const [status, label] of [["queued", "First cut queued"], ["running", "First cut processing"], ["failed", "First cut failed"]]) {
+  assert.match(render(c), /Loading your video/);
+  for (const [status, label] of [["queued", "Waiting to create your video"], ["running", "Creating your video"], ["failed", "Your video couldn’t be created"]]) {
     seed(c, status); assert.match(render(c), new RegExp(label)); assert.doesNotMatch(render(c), /class="studio-cut"/);
   }
-  seed(c); assert.match(render(c), /Loading storyboard/);
-  seedArtifacts(c); assert.match(render(c), /Retrieving published cuts/);
+  seed(c); assert.match(render(c), /Loading your story/);
+  seedArtifacts(c); assert.match(render(c), /Opening your story plan/);
 });
 
 test("missing artifact and retrieval/parse errors offer retry without stale cuts", () => {
   const c = client(); seed(c); seedArtifacts(c, []);
-  assert.match(render(c), /No storyboard artifact available/);
-  assert.match(render(c), /Retry retrieval/);
-  error(c, aiArtifactsKey(project, job)); assert.match(render(c), /Could not retrieve artifacts/);
+  assert.match(render(c), /Your story plan is missing/);
+  assert.match(render(c), /Try again/);
+  error(c, aiArtifactsKey(project, job)); assert.match(render(c), /We couldn’t check your video/);
   seedArtifacts(c); error(c, publicStoryboardOptions(project, job, artifact, true).queryKey);
-  assert.match(render(c), /Could not load storyboard/);
+  assert.match(render(c), /We couldn’t load your story plan/);
   c.removeQueries({ queryKey: aiJobKey(project, job) });
-  error(c, aiJobKey(project, job)); assert.match(render(c), /Could not retrieve job status/);
+  error(c, aiJobKey(project, job)); assert.match(render(c), /We couldn’t check on your video/);
   assert.doesNotMatch(render(c), /class="studio-cut"/);
 });
 
 test("project and job changes never reuse previous cuts", () => {
   const c = client(); seed(c); seedArtifacts(c);
   c.setQueryData(publicStoryboardOptions(project, job, artifact, true).queryKey, fixture);
-  assert.match(render(c), /5 scenes/);
-  assert.doesNotMatch(render(c, other), /5 scenes|class="studio-cut"/);
+  assert.match(render(c), /5 moments/);
+  assert.doesNotMatch(render(c, other), /5 moments|class="studio-cut"/);
   useEditorStore.getState().setActiveJob(project, other);
-  assert.match(render(c), /Loading job status/);
-  assert.doesNotMatch(render(c), /5 scenes|class="studio-cut"/);
+  assert.match(render(c), /Loading your video/);
+  assert.doesNotMatch(render(c), /5 moments|class="studio-cut"/);
   assert.notDeepEqual(publicStoryboardOptions(other, job, artifact, true).queryKey, publicStoryboardOptions(project, job, artifact, true).queryKey);
   assert.notDeepEqual(publicStoryboardOptions(project, other, artifact, true).queryKey, publicStoryboardOptions(project, job, artifact, true).queryKey);
 });
@@ -153,6 +154,6 @@ test("published cuts stay readable when a terminal job focus-refresh fails", () 
   const c = client(); seed(c); seedArtifacts(c);
   c.setQueryData(publicStoryboardOptions(project, job, artifact, true).queryKey, fixture);
   error(c, aiJobKey(project, job));
-  assert.match(render(c), /5 scenes/);
-  assert.doesNotMatch(render(c), /Could not retrieve job status/);
+  assert.match(render(c), /5 moments/);
+  assert.doesNotMatch(render(c), /We couldn’t check on your video/);
 });

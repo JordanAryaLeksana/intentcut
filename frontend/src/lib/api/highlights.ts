@@ -124,17 +124,17 @@ function validateHighlightJob(payload: HighlightJobRequest): HighlightJobRequest
   }
   const intent = payload.intent.trim();
   if ([...intent].length < 1 || [...intent].length > 1000) {
-    throw new ApiError("Creative brief must contain 1–1000 characters.", 0, "invalid_intent");
+    throw new ApiError("Your story idea needs 1–1000 characters.", 0, "invalid_intent");
   }
   if (!Number.isFinite(payload.target_seconds) || payload.target_seconds <= 0 || payload.target_seconds > 120) {
     throw new ApiError(
-      "Target duration must be greater than 0 and at most 120 seconds.",
+      "Length must be more than 0 and at most 120 seconds.",
       0,
       "invalid_duration",
     );
   }
   if (!Array.isArray(payload.media_ids) || payload.media_ids.length !== 1 || !isProjectId(payload.media_ids[0])) {
-    throw new ApiError("Select exactly one saved long-form source.", 0, "invalid_media");
+    throw new ApiError("Pick one long video.", 0, "invalid_media");
   }
   if (
     payload.candidate_ids !== undefined &&
@@ -144,7 +144,7 @@ function validateHighlightJob(payload: HighlightJobRequest): HighlightJobRequest
       payload.candidate_ids.some((id) => !/^hl-\d{2}$/.test(id)) ||
       new Set(payload.candidate_ids).size !== payload.candidate_ids.length)
   ) {
-    throw new ApiError("Candidate selection is invalid.", 0, "invalid_candidates");
+    throw new ApiError("Your moment picks look off. Pick again.", 0, "invalid_candidates");
   }
   return {
     kind: "highlight",

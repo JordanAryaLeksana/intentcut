@@ -64,14 +64,14 @@ export function VideoArtifactPlayer({
           className="button button-secondary"
           onClick={() => void load()}
         >
-          Load MP4 preview
+          Watch your video
         </button>
       )}
 
       {preview.status === "loading" && (
         <div className="space-y-2">
           <p role="status" className="text-xs">
-            Downloading generated video...
+            Bringing your video here…
           </p>
 
           <button
@@ -96,7 +96,7 @@ export function VideoArtifactPlayer({
               className="button button-secondary"
               onClick={() => void load()}
             >
-              Retry preview
+              Try watching again
             </button>
           )}
         </div>
@@ -111,18 +111,18 @@ export function VideoArtifactPlayer({
             preload="metadata"
             src={preview.url}
             className="w-full rounded-lg bg-black"
-            aria-label="Rendered video"
+            aria-label="Your finished video"
           >
-            Your browser does not support MP4 playback.
+            Your browser can’t play this video here.
           </video>
 
-          {draft && <p className="studio-storyboardNote">Live caption preview · edits are not burned into this MP4. Use Export Captioned MP4 to create a subtitled version.</p>}
+          {draft && <p className="studio-storyboardNote">You’re previewing captions live — they aren’t in the video file yet. Export a video with captions in Captions to keep them.</p>}
           <a
             href={preview.url}
             download={`intentcut-render-${artifactId}.mp4`}
             className="button button-primary"
           >
-            Download MP4
+            Download your video
           </a>
         </div>
       )}

@@ -13,7 +13,7 @@ export function JobArtifacts({ projectId, jobId }: JobArtifactsProps) {
   if (artifacts.isPending) {
     return (
       <p role="status" className="mt-3 text-sm">
-        Loading generated artifacts...
+        Loading what we made for you…
       </p>
     );
   }
@@ -22,9 +22,7 @@ export function JobArtifacts({ projectId, jobId }: JobArtifactsProps) {
     return (
       <div className="mt-3 space-y-2">
         <p role="alert" className="media-errors">
-          {artifacts.error instanceof Error
-            ? artifacts.error.message
-            : "Could not retrieve artifacts."}
+          We couldn’t load your video and story plan. Your work is saved — try again.
         </p>
 
         <button
@@ -32,7 +30,7 @@ export function JobArtifacts({ projectId, jobId }: JobArtifactsProps) {
           className="button button-secondary"
           onClick={() => void artifacts.refetch()}
         >
-          Retry
+          Try again
         </button>
       </div>
     );
@@ -42,12 +40,12 @@ export function JobArtifacts({ projectId, jobId }: JobArtifactsProps) {
 
   return (
     <div className="mt-4 space-y-3">
-      <h5 className="text-sm font-medium">Generated artifacts</h5>
+      <h5 className="text-sm font-medium">What we made for you</h5>
 
       {items.length === 0 ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Processing succeeded, but no artifacts were returned by the API.
+            Your video finished, but nothing came back to show. Check again — don’t create another cut yet.
           </p>
 
           <button
@@ -59,20 +57,16 @@ export function JobArtifacts({ projectId, jobId }: JobArtifactsProps) {
           </button>
         </div>
       ) : (
-        <ul className="space-y-2" aria-label="AI artifacts">
+        <ul className="space-y-2" aria-label="What we made for you">
           {items.map((artifact) => (
             <li
               key={artifact.id}
               className="rounded-lg border border-current/20 p-3"
             >
-              <p className="text-sm font-medium">{artifact.kind}</p>
+              <p className="text-sm font-medium">{artifact.kind === "video" ? "Your video" : artifact.kind === "storyboard" ? "Story plan" : "Your file"}</p>
 
               <p className="mt-1 text-xs text-muted-foreground">
                 {formatBytes(artifact.size_bytes)}
-              </p>
-
-              <p className="mt-1 break-all text-xs text-muted-foreground">
-                {artifact.id}
               </p>
 
               {artifact.kind === "storyboard" && (

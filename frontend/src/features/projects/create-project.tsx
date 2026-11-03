@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createProject } from "@/lib/api/projects";
+import { createProject, projectStudioPath } from "@/lib/api/projects";
+import { ProjectLibrary } from "./project-library";
 import Link from "next/link";
 import "./create-project.css";
 
@@ -51,7 +52,7 @@ export function CreateProject() {
                 setError("");
                 try {
                   const project = await createProject(name, controller.signal);
-                  router.push(`/projects/${project.id}`);
+                  router.push(projectStudioPath(project));
                 } catch (err) {
                   if (!controller.signal.aborted)
                     setError(
@@ -119,6 +120,7 @@ export function CreateProject() {
             </div>
           </aside>
         </div>
+        <ProjectLibrary />
         <footer className="create-project-footer"><span>IntentCut Studio</span><span>Your story. Your direction.</span></footer>
       </main>
     </div>

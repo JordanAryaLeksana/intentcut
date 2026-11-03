@@ -74,7 +74,7 @@ export function PersistedMedia({
     uploadController.current = controller;
 
     setError("");
-    setMessage("Sending videos and waiting for server confirmation…");
+    setMessage("Saving your videos…");
     onBusy(true);
 
     try {
@@ -86,7 +86,7 @@ export function PersistedMedia({
       // Only confirmed server responses reach this point.
       onSaved(submitted);
 
-      setMessage(`${result.items.length} videos saved by the backend.`);
+      setMessage(`${result.items.length} video${result.items.length === 1 ? "" : "s"} saved to this project.`);
 
       // Update existing cache with confirmed backend records.
       queryClient.setQueryData<MediaAsset[]>(
@@ -140,8 +140,7 @@ export function PersistedMedia({
       <h3 className="text-sm font-medium">Saved to this project</h3>
 
       <p className="mt-2 text-xs text-muted-foreground">
-        Upload limits: 10 videos, 128 MiB each, 500 MiB total. Server limits may
-        be lower.
+        You can add up to 10 videos at a time.
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -203,9 +202,9 @@ export function PersistedMedia({
       {uncertain && (
         <div className="media-errors">
           <p>
-            The server may have saved these files. Refresh and review saved
-            media before submitting again. Cancellation does not roll back
-            server work.
+            Your videos may already be saved. Look at “Saved to this project”
+            above before adding them again — stopping the upload doesn’t undo
+            what’s already saved.
           </p>
 
           <button
@@ -213,7 +212,7 @@ export function PersistedMedia({
             className="media-remove"
             onClick={() => setUncertain(false)}
           >
-            I reviewed saved media; allow another upload
+            I checked — add more videos
           </button>
         </div>
       )}
@@ -248,7 +247,6 @@ export function PersistedMedia({
               {item.video.codec}
             </p>
 
-            <p className="break-all">Media ID: {item.id}</p>
 
             <label className="mt-3 flex items-center gap-2 text-xs">
               <input
@@ -262,7 +260,7 @@ export function PersistedMedia({
                 onChange={() => toggleMediaSelection(projectId, item.id)}
               />
 
-              <span>Use in AI first cut</span>
+              <span>Use in my first cut</span>
             </label>
           </li>
         ))}

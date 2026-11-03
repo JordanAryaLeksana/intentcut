@@ -16,10 +16,19 @@ class ProjectCreate(BaseModel):
 class ProjectResponse(BaseModel):
     id: UUID
     name: str
+    # Null only for rows created before the slug migration is applied.
+    slug: str | None = None
     created_at: datetime
+
+
+class ProjectListResponse(BaseModel):
+    items: list[ProjectResponse]
 
 
 def project_response(project: Project) -> ProjectResponse:
     return ProjectResponse(
-        id=project.id, name=project.name, created_at=project.created_at
+        id=project.id,
+        name=project.name,
+        slug=getattr(project, "slug", None),
+        created_at=project.created_at,
     )

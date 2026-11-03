@@ -73,16 +73,89 @@ class Database:
         self.engine.dispose()
 
     def create_project(self, name: str) -> Project:
-        with self._sessions.begin() as session:
-            project = Project(name=name)
-            session.add(project)
-            session.flush()
-        return project
+        from sqlalchemy.exc import IntegrityError
+
+        from intentcut.backend.projects.slug import slug_candidates
+
+        # First free candidate wins. Each attempt uses its own
+        # transaction so a concurrent creation that takes the same
+        # slug rolls back cleanly and the next candidate is tried,
+        # instead of failing the whole creation with a 500.
+        for candidate in slug_candidates(name):
+            try:
+                with self._sessions.begin() as session:
+                    if (
+                        session.scalar(
+                            select(Project.id).where(Project.slug == candidate)
+                        )
+                        is not None
+                    ):
+                        continue
+                    project = Project(name=name, slug=candidate)
+                    session.add(project)
+                    session.flush()
+                return project
+            except IntegrityError:
+                continue
+        raise RuntimeError("Could not allocate a project slug")
+
+    def get_project_by_slug(self, slug: str) -> Project | None:
+        """Resolve a readable URL slug to its persisted project row."""
+        with self._sessions() as session:
+            return session.scalar(select(Project).where(Project.slug == slug))
+
+    def list_projects(self, *, limit: int = 50) -> list[Project]:
+        """Newest projects first for the project library. Read-only."""
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Invalid project list limit")
+        with self._sessions() as session:
+            return list(
+                session.scalars(
+                    select(Project)
+                    .order_by(Project.created_at.desc(), Project.id.desc())
+                    .limit(limit)
+                )
+            )
 
     def require_project(self, project_id: UUID) -> None:
         with self._sessions() as session:
             if session.get(Project, project_id) is None:
                 raise ProjectNotFound
+
+    def get_project(self, project_id: UUID) -> Project | None:
+        """Read one project by ID; None means it does not exist."""
+        with self._sessions() as session:
+            return session.get(Project, project_id)
+
+    def list_recoverable_ai_jobs(
+        self, project_id: UUID, *, limit: int = 20
+    ) -> list[AIJob]:
+        """Newest first-cut/highlight jobs for a project, newest first.
+
+        Studio recovery uses this after a refresh or restart when no
+        session job ID survives. Only pipelines that produce a
+        storyboard/video pair can become the active Studio job; manual
+        renders, revisions, captions and visuals recover through their
+        own list endpoints.
+        """
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Invalid job list limit")
+        with self._sessions() as session:
+            if session.get(Project, project_id) is None:
+                raise ProjectNotFound
+            return list(
+                session.scalars(
+                    select(AIJob)
+                    .where(
+                        AIJob.project_id == project_id,
+                        AIJob.request_payload["pipeline_version"].astext.in_(
+                            ("uploaded_v1", "highlight_v1")
+                        ),
+                    )
+                    .order_by(AIJob.created_at.desc(), AIJob.id.desc())
+                    .limit(limit)
+                )
+            )
 
     def save_media_assets(
         self, project_id: UUID, assets: Sequence[MediaAsset]

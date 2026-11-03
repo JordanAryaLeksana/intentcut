@@ -26,3 +26,7 @@ class AIJobAcceptedResponse(BaseModel):
     id: UUID
     status: Literal["queued"]
     status_url: str
+
+
+class AIJobListResponse(BaseModel):
+    items: list[AIJobResponse]

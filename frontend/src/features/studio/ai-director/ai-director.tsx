@@ -9,6 +9,7 @@ export function AIDirector({ projectId }: AIDirectorProps) {
     <section
       className="studio-panel studio-director"
       aria-labelledby="director-heading"
+      data-tour="director"
     >
       <header className="studio-panelHeader">
         <h2 id="director-heading">
@@ -17,7 +18,7 @@ export function AIDirector({ projectId }: AIDirectorProps) {
           </span>
           AI Director
         </h2>
-        <span>Storytelling</span>
+        <span>Your story partner</span>
       </header>
 
       {projectId ? (
@@ -27,9 +28,9 @@ export function AIDirector({ projectId }: AIDirectorProps) {
         />
       ) : (
         <div className="studio-directorBody">
-          <p className="studio-overline">From intention to story</p>
+          <p className="studio-overline">Your story, your direction</p>
           <h3>A creative partner, with your vision in mind.</h3>
-          <p>Create a project and upload footage to begin.</p>
+          <p>Create a project and add your footage to begin.</p>
         </div>
       )}
     </section>

@@ -6,18 +6,18 @@ export interface ObservedJob extends AIJob {
 }
 
 export const STAGE_COPY: Record<AIProgressStage, { title: string; description: string }> = {
-  generating_image: {title:"Generating image", description:"Muse Image is processing the instruction."},
-  validating_image: {title:"Validating image", description:"Checking the output encoding and decoded dimensions."},
-  preparing_media: { title: "Preparing media", description: "Checking the selected footage and verifying source files." },
-  extracting_audio: { title: "Extracting audio", description: "Preparing the full video audio timeline." },
-  transcribing_audio: { title: "Transcribing audio", description: "Muse Voice is processing the audio." },
-  validating_transcript: { title: "Validating captions", description: "Checking the returned turn text and timing." },
-  extracting_windows: { title: "Extracting windows", description: "Preparing video windows for analysis." },
-  understanding_footage: { title: "Understanding footage", description: "Analyzing and validating evidence from your footage." },
-  selecting_story: { title: "Selecting the story", description: "Choosing a sequence and validating the edit plan." },
-  revising_sequence: { title: "Revising the sequence", description: "Preparing a supported cut-order proposal for your review." },
-  rendering_video: { title: "Rendering video", description: "Rendering the selected sequence and validating the MP4." },
-  publishing_artifacts: { title: "Publishing the first cut", description: "Verifying and saving the storyboard and rendered video." },
+  generating_image: { title: "Creating your image", description: "Creating an image from your idea." },
+  validating_image: { title: "Checking your image", description: "Making sure your image looks right." },
+  preparing_media: { title: "Getting your footage ready", description: "Checking the footage you chose." },
+  extracting_audio: { title: "Listening to your footage", description: "Preparing the sound from your video." },
+  transcribing_audio: { title: "Writing down what’s said", description: "Turning the speech in your video into words." },
+  validating_transcript: { title: "Checking captions", description: "Checking the words and their timing." },
+  extracting_windows: { title: "Finding your best moments", description: "Pulling out the moments worth using." },
+  understanding_footage: { title: "Watching your footage", description: "Looking through your footage to understand it." },
+  selecting_story: { title: "Choosing your story", description: "Picking the order that tells your story best." },
+  revising_sequence: { title: "Reworking your story order", description: "Preparing a new order for you to review." },
+  rendering_video: { title: "Putting your video together", description: "Building your video in the order you chose." },
+  publishing_artifacts: { title: "Saving your first cut", description: "Saving your story plan and finished video." },
 };
 
 export function observeJob(previous: ObservedJob | undefined, next: AIJob): ObservedJob {
@@ -50,15 +50,15 @@ export function formatElapsed(seconds: number | null): string {
 
 export function failureDescription(code: string | null): string {
   switch (code) {
-    case "caption_render_unsupported": return "Subtitle rendering is unavailable or this source format is unsupported.";
-    case "invalid_transcript": return "The transcription did not pass validation. No replacement request was submitted.";
-    case "transcription_outcome_unknown": return "The transcription outcome is uncertain. Automatic retry is disabled to avoid duplicate charges.";
-    case "transcription_rate_limited": return "Muse Voice rate-limited this request. It has not been retried automatically.";
-    case "provider_unavailable": return "The AI service could not complete this attempt.";
-    case "invalid_ai_selection": return "The proposed edit plan did not pass validation.";
-    case "source_unavailable": return "Source footage could not be read or verified.";
-    case "processing_limit": return "The request exceeded the processing limits.";
-    case "worker_lease_expired": return "The processing attempt expired before it finished.";
-    default: return "Processing could not finish. No new request has been submitted.";
+    case "caption_render_unsupported": return "We couldn’t add subtitles to this video. Try a different video format.";
+    case "invalid_transcript": return "We couldn’t read the speech clearly enough to continue. Nothing new was started.";
+    case "transcription_outcome_unknown": return "We’re not sure whether the captions finished. We didn’t start again, so you won’t be charged twice.";
+    case "transcription_rate_limited": return "Caption creation is busy right now. Wait a moment, then try again. We didn’t start again for you.";
+    case "provider_unavailable": return "The AI service couldn’t finish this time. Your footage is unchanged — you can try again.";
+    case "invalid_ai_selection": return "The story plan didn’t hold together. Try describing your story a little differently.";
+    case "source_unavailable": return "We couldn’t read your footage. Check that it still plays, then try again.";
+    case "processing_limit": return "This video is longer or larger than we can handle in one go. Try a shorter selection.";
+    case "worker_lease_expired": return "This try took too long and stopped. Your footage is unchanged — you can try again.";
+    default: return "We couldn’t finish your video. Nothing new was started — you can try again.";
   }
 }

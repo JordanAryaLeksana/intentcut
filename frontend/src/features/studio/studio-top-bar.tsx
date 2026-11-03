@@ -1,31 +1,44 @@
 "use client";
 
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { getProject } from "@/lib/api/projects";
+import { TAKE_TOUR_EVENT } from "./studio-tour-logic";
 import { draftMatchesSaved, useDraftStore } from "./store/use-draft-store";
 import { usePreviewJob } from "./use-editing";
 import { useAIJobStatus } from "./ai-director/hooks/use-ai-job-status";
 
 export function renderStateLabel(status?: string, error = false): string {
-  if (error) return "Job unavailable";
+  if (error) return "We couldn’t check your video";
   switch (status) {
-    case "queued": return "First cut queued";
-    case "running": return "Processing first cut";
-    case "succeeded": return "First cut rendered";
-    case "failed": return "First cut failed";
-    default: return "Checking job";
+    case "queued": return "Waiting to create your video";
+    case "running": return "Creating your video…";
+    case "succeeded": return "Your video is ready";
+    case "failed": return "Your video couldn’t be created";
+    default: return "Checking your video…";
   }
 }
 
 function JobState({ projectId }: { projectId: string }) {
   const {jobId, manual} = usePreviewJob(projectId);
   const job = useAIJobStatus(projectId, jobId);
-  return <span className="studio-renderState" role="status">{manual ? `Draft revision ${manual.revision} · ${job.isError ? "Status unavailable" : job.data?.status ?? manual.status}` : jobId ? renderStateLabel(job.data?.status, job.isError) : "No active render"}</span>;
+  return <span className="studio-renderState" role="status">{manual ? `Video version ${manual.revision} · ${job.isError ? "We couldn’t check its status" : renderStateLabel(job.data?.status ?? manual.status)}` : jobId ? renderStateLabel(job.data?.status, job.isError) : "No video yet"}</span>;
 }
 
 function DraftState({ projectId }: { projectId: string }) {
   const draft = useDraftStore((state) => state.byProject[projectId]);
   const saved = useDraftStore((state) => state.savedByProject[projectId]);
-  return <span className="studio-draftState">{draft ? draftMatchesSaved(draft,saved) ? `Draft saved · Revision ${saved?.revision}` : "Unsaved draft changes" : "No editing draft"}</span>;
+  return <span className="studio-draftState">{draft ? draftMatchesSaved(draft,saved) ? `Draft saved · Version ${saved?.revision}` : "Unsaved changes" : "No draft yet"}</span>;
+}
+
+function ProjectTitle({ projectId }: { projectId: string }) {
+  const project = useQuery({
+    queryKey: ["projects", projectId, "title"] as const,
+    queryFn: ({ signal }) => getProject(projectId, signal),
+    retry: false,
+    staleTime: 60_000,
+  });
+  return <h1>{project.data?.name ?? "Your project"}</h1>;
 }
 
 export function StudioTopBar({ projectId }: { projectId?: string }) {
@@ -33,16 +46,32 @@ export function StudioTopBar({ projectId }: { projectId?: string }) {
     <header className="studio-topbar">
       <Link href="/" className="studio-brand" aria-label="IntentCut home" translate="no"><span aria-hidden="true">/</span> IntentCut</Link>
       <div className="studio-project">
-        <h1 title={projectId}>{projectId ? `Project ${projectId.slice(0, 8)}` : "Studio preview"}</h1>
-        <span className="studio-badge">{projectId ? "Local project" : "Session only"}</span>
+        {projectId ? <ProjectTitle projectId={projectId} /> : <h1>Studio preview</h1>}
+        <span className="studio-badge">{projectId ? "Saved project" : "Preview only"}</span>
       </div>
       <div className="studio-toolbarState">
         {projectId ? <JobState key={projectId} projectId={projectId} /> : <span>Open a project to begin</span>}
-        {projectId ? <DraftState projectId={projectId} /> : <span className="studio-draftState">Draft saving unavailable</span>}
+        {projectId ? <DraftState projectId={projectId} /> : <span className="studio-draftState">Open a project to save a draft</span>}
       </div>
       <nav className="studio-toolbarActions" aria-label="Project actions">
-        <Link href="/studio" className="studio-toolbarLink">New project</Link>
-        <a href="#monitor-heading" className="button button-secondary">Preview / download</a>
+        <Link href="/studio" className="studio-toolbarLink">All projects</Link>
+        <a href="#monitor-heading" className="button button-secondary">Watch & download</a>
+        <details className="studio-help">
+          <summary>Help</summary>
+          <div className="studio-helpPanel">
+            <p>New here? Take the short tour — it highlights each part of the Studio and never changes your work.</p>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={(event) => {
+                event.currentTarget.closest("details")?.removeAttribute("open");
+                window.dispatchEvent(new Event(TAKE_TOUR_EVENT));
+              }}
+            >
+              Take a tour
+            </button>
+          </div>
+        </details>
       </nav>
     </header>
   );

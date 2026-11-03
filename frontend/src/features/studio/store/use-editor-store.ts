@@ -13,6 +13,8 @@ interface EditorState {
   activeJobByProject: Record<string, string>;
 
   setActiveJob: (projectId: string, jobId: string) => void;
+
+  clearActiveJob: (projectId: string) => void;
 }
 
 const EMPTY_SELECTION: string[] = [];
@@ -58,6 +60,14 @@ export const useEditorStore = create<EditorState>()((set) => ({
         [projectId]: jobId,
       },
     })),
+
+  clearActiveJob: (projectId) =>
+    set((state) => {
+      if (!(projectId in state.activeJobByProject)) return state;
+      const next = { ...state.activeJobByProject };
+      delete next[projectId];
+      return { activeJobByProject: next };
+    }),
 }));
 
 export function useSelectedMediaIds(projectId: string) {
