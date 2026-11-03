@@ -188,6 +188,7 @@ def test_cli_registry_matches_recovery_and_executes_correct_handlers(
     executed = []
     manual = handler("manual", media)
     first_cut = handler("first-cut", media)
+    highlight = handler("highlight", media)
     revision = handler("revision", proposal)
     captions = handler("captions", rendition)
 
@@ -205,7 +206,13 @@ def test_cli_registry_matches_recovery_and_executes_correct_handlers(
         expected = (
             ("manual_v1",)
             if manual_only
-            else ("manual_v1", "caption_burn_v1", "uploaded_v1", "revision_v1")
+            else (
+                "manual_v1",
+                "caption_burn_v1",
+                "uploaded_v1",
+                "highlight_v1",
+                "revision_v1",
+            )
         )
         assert dispatcher.supported_job_types == expected
 
@@ -240,7 +247,19 @@ def test_cli_registry_matches_recovery_and_executes_correct_handlers(
     monkeypatch.setattr(worker_cli, "LocalMediaStorage", lambda *args: storage)
     monkeypatch.setattr(worker_cli, "OpenAI", client)
     monkeypatch.setattr(worker_cli, "MuseClient", lambda client: object())
-    monkeypatch.setattr(worker_cli, "RealAIProcessingAdapter", lambda **kw: first_cut)
+
+    def real_adapter(**kwargs):
+        # Mirror RealAIProcessingAdapter: the instance exposes `.muse`.
+        first_cut.muse = kwargs["muse"]
+        return first_cut
+
+    def highlight_adapter(**kwargs):
+        # Highlight must reuse the first-cut provider instance.
+        assert kwargs["muse"] is first_cut.muse
+        return highlight
+
+    monkeypatch.setattr(worker_cli, "RealAIProcessingAdapter", real_adapter)
+    monkeypatch.setattr(worker_cli, "HighlightProcessingAdapter", highlight_adapter)
     monkeypatch.setattr(worker_cli, "ManualRenderProcessor", lambda *args: manual)
     monkeypatch.setattr(worker_cli, "RevisionProcessor", lambda *args: revision)
     monkeypatch.setattr(worker_cli, "CaptionBurnProcessor", lambda *args: captions)
@@ -254,6 +273,7 @@ def test_cli_registry_matches_recovery_and_executes_correct_handlers(
             ("manual", "manual_v1"),
             ("captions", "caption_burn_v1"),
             ("first-cut", "uploaded_v1"),
+            ("highlight", "highlight_v1"),
             ("revision", "revision_v1"),
         ]
     )
