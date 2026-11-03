@@ -110,20 +110,20 @@ The architecture separates **model decisions** from **media authority**: Muse ca
 
 ## Quick start — local development
 
-> **Important:** the supported deployment posture is **trusted local development**. The backend has no end-user authentication or per-user authorization and must **not** be exposed to the public internet, a tunnel, or an untrusted LAN. For cross-platform guidance, see the next section.
+> **Security notice:** IntentCut currently supports trusted, local-first development. The backend does not implement end-user authentication or per-user authorization. Do not expose its API to the public internet, an untrusted LAN, or a public tunnel. UUIDs and project slugs are not access controls.
 
 ### Prerequisites
 
-- **Python 3.12.x** (the repo uses Python 3.12; `uv` can install the pinned interpreter).
-- **uv** for Python dependencies ([installation guide](https://docs.astral.sh/uv/getting-started/installation/)).
-- **Node.js 24** (used in development) and npm. Use `npm ci` against the existing lockfile.
-- **Docker Engine/Desktop with Compose v2** to run the included PostgreSQL 17 service.
-- **FFmpeg and FFprobe** on `PATH`, with H.264 `libx264`, AAC encoding, and the `scale` filter's `reset_sar` support. The media engine was validated with FFmpeg 8.0.1 on Ubuntu; other builds need local verification.
-- **Meta Model API key** only for actual Muse-powered generation. Running frontend/build/offline tests does not authorize paid inference.
+- **Python 3.12.x** and [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- **Node.js 24** and npm
+- **Docker Engine/Desktop** with Docker Compose v2
+- **PostgreSQL 17**, provided through Docker Compose
+- **FFmpeg and FFprobe**, with H.264 (`libx264`) and AAC encoding support
+- **Meta Model API key**, required only for live Muse-powered processing
 
-### 1 — Clone and configure
+The primary validated environment is Ubuntu Linux with Python 3.12, Node.js 24, PostgreSQL 17, and FFmpeg 8.0.1.
 
-Run in a Linux, macOS, or **Windows WSL2 Ubuntu** terminal:
+### 1. Clone and configure
 
 ```bash
 git clone https://github.com/JordanAryaLeksana/intentcut.git
@@ -131,42 +131,128 @@ cd intentcut
 cp .env.example .env
 ```
 
-Edit `.env` locally. Replace `CHANGE_ME` consistently in `POSTGRES_PASSWORD`, `DATABASE_URL`, and `TEST_DATABASE_URL`; replace the placeholder `MODEL_API_KEY` with your own credential **only if running live AI**. Never commit `.env` or paste API keys into issues or demo recordings.
+Edit `.env` locally. Configure `POSTGRES_PASSWORD`, `DATABASE_URL`, and `TEST_DATABASE_URL` consistently with the PostgreSQL services.
 
-For a local browser-based Studio, these values additionally need to be present in the root `.env`:
+For local browser-based Studio access, configure the following settings:
 
 ```dotenv
 AI_JOBS_LOCAL_ENABLED=true
 AI_JOBS_BROWSER_ENABLED=true
-AI_PROCESSING_ENABLED=true
-CORS_ORIGINS=["http://127.0.0.1:3000","http://localhost:3000"]
+AI_PROCESSING_ENABLED=false
+CORS_ORIGINS='["http://127.0.0.1:3000","http://localhost:3000"]'
 ```
 
-**Costs and security:** `AI_PROCESSING_ENABLED=true` permits job execution with a valid API key; an invoked worker can make billable Meta API requests. Keep processing disabled when not needed, and enable browser access only on loopback with the explicit allowed origins above. `MODEL_API_KEY` stays on the backend—never use a `NEXT_PUBLIC_` variable for it.
+Set `AI_PROCESSING_ENABLED=true` only when you intend to execute AI jobs. Configure `MODEL_API_KEY` with a valid credential before starting live Muse processing.
 
-### 2 — Database and Python environment
+**Never commit `.env`, expose API credentials in frontend environment variables, or include secrets in demo recordings.**
+
+### 2. Start PostgreSQL and install Python dependencies
 
 ```bash
 docker compose up -d postgres
+docker compose ps
+
 uv python install 3.12.15
 uv sync --frozen
-uv run intentcut-init-db
 ```
 
-The Compose file publishes PostgreSQL **only on `127.0.0.1:5432`**. It does not build or launch the backend or frontend. Database initialization creates missing tables; it is not a general migration framework.
-
-### 3 — Start the API (terminal A, from repository root)
+Initialize the database:
 
 ```bash
-uv run uvicorn intentcut.backend.app:create_app \
-  --factory --host 127.0.0.1 --port 8000 --no-proxy-headers
+uv run --env-file .env intentcut-init-db
 ```
 
-Keep the backend bound to loopback. Swagger API reference is available at `http://127.0.0.1:8000/docs` while the server runs.
+The PostgreSQL application service is published on `127.0.0.1:5432`.
 
-### 4 — Start the Studio (terminal B)
+Docker Compose starts the database service, not the complete IntentCut application.
 
-Create `frontend/.env.local` with:
+**Important:** Database initialization creates missing tables but does not migrate existing tables to newer schemas.
+
+### 3. Database migrations for existing installations
+
+If you are upgrading an existing IntentCut database, inspect the SQL migrations under:
+
+```text
+scripts/migrations/
+```
+
+Migration files are versioned and should be applied in the required sequence, based on the current database schema.
+
+For example, migration `007_project_slugs.sql` adds and backfills readable project slugs while retaining existing project UUIDs.
+
+Before applying any migration:
+
+1. Back up the application database.
+2. Review the migration SQL and confirm the target database.
+3. Stop concurrent writes.
+4. Execute the applicable migration transactionally.
+5. Verify the resulting schema and API behavior.
+
+The following example applies **migration 007 only**, assuming earlier migrations have already been applied and the PostgreSQL container is configured for the `intentcut` application database.
+
+Create a backup:
+
+```bash
+mkdir -p .local-backups
+chmod 700 .local-backups
+
+docker compose exec -T postgres \
+  sh -c 'exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' \
+  > .local-backups/intentcut-before-007.dump
+```
+
+Verify the backup archive:
+
+```bash
+docker compose exec -T postgres pg_restore -l \
+  < .local-backups/intentcut-before-007.dump
+```
+
+Apply the migration:
+
+```bash
+{
+  printf 'BEGIN;\n'
+  cat scripts/migrations/007_project_slugs.sql
+  printf '\nCOMMIT;\n'
+} | docker compose exec -T postgres \
+  sh -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
+After a successful commit, verify the application endpoint:
+
+```bash
+curl -i http://127.0.0.1:8000/projects
+```
+
+Run this HTTP check after starting the API in the next step. A successful request should return HTTP `200`.
+
+Do not delete existing PostgreSQL volumes to resolve schema mismatches.
+
+### 4. Start the backend API
+
+From the repository root:
+
+```bash
+uv run --env-file .env uvicorn intentcut.backend.app:create_app \
+  --factory \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --no-proxy-headers
+```
+
+The API will be accessible at:
+
+- API documentation: `http://127.0.0.1:8000/docs`
+- Projects endpoint: `http://127.0.0.1:8000/projects`
+
+If port `8000` is already occupied, use another available loopback port and update the frontend API URL accordingly.
+
+**Keep the backend bound to `127.0.0.1`.**
+
+### 5. Start the frontend Studio
+
+Create `frontend/.env.local`:
 
 ```dotenv
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
@@ -180,87 +266,124 @@ npm ci
 npm run dev
 ```
 
-Open **http://127.0.0.1:3000** in a modern desktop browser. Create a project, upload footage, and explore the existing Studio. The API URL is included in the client build, so **rebuild the frontend if you change `NEXT_PUBLIC_API_BASE_URL` for a production build**.
+Open `http://127.0.0.1:3000`.
 
-### 5 — Execute a queued AI job (terminal C, from repository root)
+Create a project, upload authorized footage, and enter the editing Studio.
 
-When a project has queued a job and the Meta key and opt-ins are configured:
-
-```bash
-uv run intentcut-ai-worker --max-jobs 1 --max-attempts 1
-```
-
-This intentionally processes **at most one queued job** and avoids automatic retry. For local development with an explicitly accepted ongoing inference cost, the worker also supports `--continuous --poll-seconds 3`. Do not start continuous paid processing by default for a judge's first run. Inspect the returned job status and rendered artifact in Studio.
-
-**Alternative without a Meta key:** test the deterministic renderer directly (ensure the destination directory exists and the output does not already exist):
+If port `3000` is occupied, start Next.js on another port:
 
 ```bash
-uv run intentcut-render path/to/first.mp4 path/to/second.mp4 -o output.mp4
+npm run dev -- --hostname 127.0.0.1 --port 3001
 ```
 
-This verifies the video engine, **not** AI editorial selection.
+When changing the frontend port, add the corresponding origin to `CORS_ORIGINS` and restart the backend. Restart the frontend after changing its API configuration.
+
+### 6. Execute one queued AI job
+
+Before running live AI processing:
+
+- Configure a valid `MODEL_API_KEY`.
+- Set `AI_PROCESSING_ENABLED=true`.
+- Restart the backend if its configuration changed.
+- Ensure the worker uses the same database configuration.
+- Confirm which job is queued to avoid unintended API charges.
+
+From the repository root:
+
+```bash
+uv run --env-file .env intentcut-ai-worker --max-jobs 1
+```
+
+This limits execution to at most one job in the worker invocation. Check `intentcut-ai-worker --help` for additional supported retry and scheduling options.
+
+The worker performs AI processing separately from HTTP requests. Successful processing should produce persisted editing artifacts and a rendered video that can be inspected and downloaded through Studio.
+
+**Live Muse inference may incur API charges.** Avoid continuous processing or automatic retries unless explicitly intended.
+
+### 7. Verify deterministic video rendering
+
+Without a Meta API key, the FFmpeg-based renderer can be exercised independently:
+
+```bash
+uv run intentcut-render \
+  path/to/first.mp4 \
+  path/to/second.mp4 \
+  -o output.mp4
+```
+
+Provide existing, supported input media and a valid output path.
+
+This verifies deterministic media rendering, **not Muse Spark video understanding or editorial reasoning**.
+
+---
 
 ## Operating system and device guidance
 
-The application targets standards-based browsers, but **installation**, **browser responsiveness**, and **remote-device networking** are different claims.
+IntentCut primarily targets local development and desktop-browser editing. Cross-platform compatibility should be distinguished from actual end-to-end validation.
 
-| Environment | Recommended approach | Validation status |
+| Environment | Guidance | Validation |
 | --- | --- | --- |
-| Ubuntu / Linux | Python/uv + FFmpeg installed locally; Docker Compose for PostgreSQL; Node/npm for frontend | **Primary development and E2E environment** |
-| Windows 11 | **WSL2 Ubuntu** with Docker Desktop WSL integration; run the Linux instructions inside WSL | **Recommended compatibility route; not separately E2E-certified** |
-| macOS (Apple Silicon / Intel) | Homebrew or equivalent for FFmpeg and uv, Python 3.12 via uv, Docker Desktop for PostgreSQL, Node/npm | **Expected from portable stack; verify FFmpeg features and run tests locally** |
-| Windows native (PowerShell) | Not the primary tested environment; prefer WSL2 to avoid FFmpeg, path and shell differences | **Not validated** |
-| Mobile / tablet browser | Responsive UI design is present, but local-only API networking prevents unsupported remote-device usage | **Layout viewport checks are not a guarantee of remote-phone E2E** |
+| Ubuntu/Linux | Python, uv, FFmpeg, Node.js, and Docker Compose | Primary tested environment |
+| Windows 11 | Use WSL2 Ubuntu with Docker Desktop integration | Recommended; not separately E2E-certified |
+| macOS | Install dependencies using Homebrew or equivalent | Expected compatibility; requires verification |
+| Native Windows | Prefer WSL2 for consistent shell, path, and FFmpeg behavior | Not validated |
+| Mobile/tablet browsers | Responsive interface available; local-only API networking limits remote-device access | Viewport tests do not establish device E2E |
 
-The project is **not** a one-command Docker deployment across operating systems: `compose.yaml` currently runs PostgreSQL only. No universal OS/device compatibility claim is made.
+The provided `compose.yaml` runs PostgreSQL services. It does not provide a universal one-command deployment of the complete application.
 
-**Platform-specific preparation:**
+### Troubleshooting
 
-- **Ubuntu/Linux:** install Git and FFmpeg through your distribution's package manager (for example `sudo apt update && sudo apt install -y git ffmpeg` on Ubuntu). Install Docker Engine + Compose v2, Node.js 24, and `uv` using their official installation instructions. Distribution FFmpeg packages may differ from the validated 8.0.1 build.
-- **macOS:** with [Homebrew](https://brew.sh/), `brew install git ffmpeg uv`; install Node.js 24 through your preferred version manager and Docker Desktop. Check the FFmpeg encoder/filter support before running the renderer.
-- **Windows:** in an elevated PowerShell terminal use `wsl --install -d Ubuntu` where supported; restart if prompted, enable Docker Desktop's WSL2 integration, then use the Linux commands **inside Ubuntu**, preferably with the repo cloned to the Linux filesystem rather than a Windows-mounted directory.
-
-**Troubleshooting:**
-
-| Symptom | Check |
+| Problem | Recommended check |
 | --- | --- |
-| API cannot connect to PostgreSQL | `docker compose ps`; match the `.env` password and `DATABASE_URL` to port `5432` |
-| Studio says it cannot reach API | Confirm backend is running, `frontend/.env.local` uses `NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000`, and browser origin is listed in `CORS_ORIGINS`; restart frontend after changing client configuration |
-| AI job remains queued | The backend does not process jobs itself. Start `intentcut-ai-worker` with the same root `.env` and inspect its output |
-| AI job disabled / unavailable (`503`) | Verify local-only and processing opt-ins, API key availability and FFmpeg on `PATH`; do not bypass security middleware |
-| Upload rejected (`413`) | Check both `MAX_FILE_BYTES` and `MAX_REQUEST_BYTES`; increasing them requires free disk and explicit testing |
-| FFmpeg cannot encode | Check `libx264`, AAC, and `scale/reset_sar`; use a compatible system FFmpeg build |
-| Test DB connectivity errors | Bring up `postgres-test` and check `TEST_DATABASE_URL` points to `intentcut_test` on port `5433`, not the primary database |
+| API returns `database_unavailable` | Confirm database connection, inspect SQLAlchemy logs, and verify migrations |
+| `column projects.slug does not exist` | Review and apply migration 007 after a verified backup |
+| Browser returns CORS errors | Check the exact frontend origin in `CORS_ORIGINS` and restart the API |
+| Studio cannot connect to the API | Verify Uvicorn port and `NEXT_PUBLIC_API_BASE_URL` |
+| AI job remains queued | Check worker execution, feature flags, and database configuration |
+| Upload returns HTTP 413 | Inspect upload and request-size limits |
+| FFmpeg rendering fails | Check codecs, filters, source format, and available disk space |
 
-If `ffmpeg` is missing or produces a filter/encoder error, run:
+Useful diagnostics:
 
 ```bash
+docker compose ps
 ffmpeg -version
 ffprobe -version
 ffmpeg -h filter=scale
 ffmpeg -encoders
 ```
 
-Verify the expected codecs and `reset_sar` option before processing footage.
+---
 
 ## Validation and reproducibility
 
-Run from the repository root after configuring the dedicated **test** database:
+### Backend tests
+
+Start the dedicated test database:
 
 ```bash
 docker compose --profile test up -d postgres-test
+```
+
+Run the automated tests:
+
+```bash
 uv run --env-file .env pytest tests/unit/ -q
 uv run --env-file .env pytest tests/integration/backend/ -q
 uv run ruff check .
 uv run ruff format --check .
 ```
 
-Frontend validation:
+The test database must be isolated from the application database. Never run integration tests against a production database.
+
+### Frontend validation
 
 ```bash
 cd frontend
+
 npm ci
 npm run build
+
 npm run test:api
 npm run test:media
 npm run test:storyboard
@@ -269,9 +392,21 @@ npm run test:highlights
 npm run test:highlights-nav
 ```
 
-**Reported local validation snapshot (November 3, 2026, on the final-submission-audit branch):** 479 unit tests passed; 264 backend integration tests passed; the frontend production build passed in its preceding release audit. These are developer-reported local results, **not a claimed public CI badge**. The full browser → worker → MP4 path was exercised with a local deterministic **mock Muse provider**; the downloaded MP4 was probed and fully decoded. Real Muse inference and a six-hour/multi-GB file are separate acceptance gates.
+### Reported verification results
 
-Integration tests require `TEST_DATABASE_URL` to point to a dedicated database ending in `_test` (the included Compose test service maps it to `127.0.0.1:5433`). They generate synthetic media and may invoke real FFmpeg. **Never point tests at a production database.**
+On November 3, 2026, the final-submission audit reported:
+
+- **479 passing unit tests**
+- **264 passing backend integration tests**
+- Successful Next.js production build
+- Real FFmpeg-based MP4 generation and validation
+- Browser-to-worker workflows tested using a deterministic mock Muse provider
+
+These are local developer-reported results, not a public CI certification.
+
+**Mocked Muse provider tests and live Muse inference are separate verification levels.** Automated tests validate orchestration, data persistence, and media rendering without establishing the semantic quality of real-model editorial decisions.
+
+Actual live inference outcomes should be documented separately after verification.
 
 ## Limitations and security
 
@@ -284,56 +419,20 @@ Integration tests require `TEST_DATABASE_URL` to point to a dedicated database e
 - **Editing scope:** IntentCut is an explainable first-cut copilot. It does not aim to replace a professional non-linear editing suite with arbitrary effects, collaborative multi-user access, or guaranteed production-quality edits.
 - **Footage rights:** upload only footage you own or are authorized to reuse. A publicly viewable video is not automatically licensed for editing, redistribution, or a hackathon demonstration.
 
-## Judge's guide: what to look for
+## Technical implementation and verification
 
-The following capabilities map to the hackathon's published criteria without claiming unearned outcomes.
+IntentCut's main capabilities are implemented and verifiable through the application source code and automated tests:
 
-| Judging criterion | What IntentCut demonstrates |
-| --- | --- |
-| **Impact (30%)** | Helps creators move from raw footage to a usable first cut, especially when manual review and moment selection are expensive in time |
-| **Use of Meta AI Tooling (25%)** | Muse Spark understanding of actual video windows + source-grounded editorial direction; optional Muse Image creative assets; AI suggestions remain bounded and explainable |
-| **Technical Depth & Execution (20%)** | Validated EditPlans, immutable source references, explicit inference budgets, PostgreSQL worker lifecycle, robust FFmpeg output validation and real-MP4 tests |
-| **Demo (25%)** | A reproducible flow: create → upload → generate → inspect storyboard / highlights → revise → play and download real MP4 |
+- **Media ingestion and AI orchestration:** Project creation, footage uploads, temporal video analysis with Muse Spark, AI job processing, and validated edit plans.
+- **Video rendering:** FFmpeg-based MP4 generation, media probing, output validation, and end-to-end rendering tests.
+- **AI-assisted editing:** Persistent edit drafts, storyboard inspection, natural-language revision proposals, and re-rendering.
+- **Creative tools:** Editable captions, subtitled video exports, Muse Image-generated visuals, and project cover selection.
+- **Long-form highlights:** Candidate discovery, guided moment selection, and integration with the Studio editing workflow.
+- **Engineering verification:** Unit tests, backend integration tests, frontend component tests, and real MP4 end-to-end tests.
 
-### Suggested three-minute demo
+For further inspection, see the `src/`, `frontend/src/`, `scripts/`, and `tests/` directories, along with [Engineering conventions](AGENTS.md).
 
-| Time | Show | What the judge learns |
-| --- | --- | --- |
-| **0:00–0:20** | The raw-footage problem and IntentCut's one-sentence promise | Intended user and impact |
-| **0:20–0:45** | Create project and upload licensed source footage | Real application and input |
-| **0:45–1:20** | Enter a creative brief; show Muse-powered window understanding and storyboard | Real Meta AI use and grounded decisions |
-| **1:20–1:50** | Inspect Highlight Navigator, original timestamps and include/exclude | Human control and explainability |
-| **1:50–2:25** | Show real MP4, timeline, and one accepted natural-language revision | Working editing loop and technical execution |
-| **2:25–3:00** | Download/play export; briefly show relevant code/tests and honest MVP limitations | Functionality, engineering quality, transparency |
-
-**Demo integrity:** show real recorded interactions and clearly distinguish *live Muse inference* from a deterministic or mocked demonstration. Include specific code and functionality built during the hackathon. Keep the video **at or under three minutes**, and confirm the link works in an incognito window.
-
-## Hackathon submission checklist
-
-- [ ] Repository is public and opens in a logged-out browser.
-- [ ] The **three-minute demo video** is accessible without requesting permission.
-- [ ] Demo explicitly shows the code, features, and real functionality built during October 26–November 4, 2026.
-- [ ] Submit through [Cerebral Valley](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/hackathon/submit) **before November 4, 2026 at 9:00 PM EST** (November 5, 09:00 WIB).
-- [ ] Solo-builder / contributor information on the submission matches the actual project participants.
-- [ ] All real API credentials, `.env` files, generated artifacts containing private footage, and unnecessary local state are excluded from Git.
-- [ ] Submission repo is built from the intended final branch and linked to the correct demo version.
-- [ ] Any optional X post or category entry is completed only if you actually enter that award category.
-
-## Related technical documentation
-
-The repository preserves implementation notes and acceptance evidence from individual milestones. Start here for deeper inspection:
-
-- [Uploaded media → Muse → worker → MP4](M2B9_UPLOADED_MEDIA.md)
-- [Job API and local access boundary](M2B8_API.md)
-- [Editable captions](BATCH_4_EDITABLE_CAPTIONS.md)
-- [Muse Image / AI Visuals](BATCH_5_MUSE_IMAGE.md)
-- [Persistent editing](M3_4_PERSISTENT_EDITING.md)
-- [Collaborative revisions](M3_5_COLLABORATIVE_REVISION.md)
-- [Engineering conventions](AGENTS.md)
-
-Some milestone documents describe historical states and may be superseded by the current code. **The source code and current tests are authoritative** for behavior.
-
----
+The source code and current tests are authoritative for implemented behavior.
 
 **Built by [Jordan Arya Leksana](https://github.com/JordanAryaLeksana) · Meta Global AI Developer Hackathon 2026 · Indie Developer Track**
 

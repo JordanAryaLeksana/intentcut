@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { listProjects, projectStudioPath } from "@/lib/api/projects";
+import "./project-library.css";
 
 export function ProjectLibrary() {
   const projects = useQuery({
@@ -13,38 +14,71 @@ export function ProjectLibrary() {
   });
 
   return (
-    <section aria-labelledby="library-heading">
-      <h2 id="library-heading">Your projects</h2>
-      {projects.isPending && <p role="status">Loading your projects…</p>}
-      {projects.isError && (
+    <section className="project-library" aria-labelledby="library-heading">
+      <header className="project-library-header">
+        <span className="project-library-sectionNumber" aria-hidden="true">02</span>
         <div>
-          <p role="alert">
-            We couldn’t load your projects just now. Your work is saved —
-            try again in a moment.
-          </p>
-          <button type="button" onClick={() => void projects.refetch()}>
-            Try again
+          <h2 id="library-heading">Your projects</h2>
+          <p>Pick up where your story left off.</p>
+        </div>
+      </header>
+      {projects.isPending && (
+        <div className="project-library-state" role="status">
+          <p className="project-library-stateTitle">Loading your projects…</p>
+          <p>Your stories will appear here in a moment.</p>
+        </div>
+      )}
+      {projects.isError && (
+        <div className="project-library-state project-library-stateError">
+          <div role="alert">
+            <p className="project-library-stateTitle">We couldn’t load your projects just now.</p>
+            <p>Your work is saved — try again in a moment.</p>
+          </div>
+          <button
+            type="button"
+            className="button button-secondary project-library-retry"
+            disabled={projects.isFetching}
+            onClick={() => void projects.refetch()}
+          >
+            {projects.isFetching ? "Trying again…" : "Try again"}
           </button>
         </div>
       )}
       {projects.isSuccess && projects.data.length === 0 && (
-        <p>No projects yet. Name your first story above to get started.</p>
+        <div className="project-library-state" role="status">
+          <p className="project-library-stateTitle">No projects yet.</p>
+          <p>Name your first story above to get started.</p>
+        </div>
       )}
       {projects.isSuccess && projects.data.length > 0 && (
-        <ul>
+        <ul className="project-library-grid" role="list">
           {projects.data.map((project) => (
             <li key={project.id}>
-              <article>
-                <h3>{project.name}</h3>
-                <p>
+              <article className="project-library-card" aria-labelledby={`project-${project.id}`}>
+                <span className="project-library-mark" aria-hidden="true">/</span>
+                <h3 id={`project-${project.id}`}>{project.name}</h3>
+                <p className="project-library-date">
                   Created{" "}
-                  {new Date(project.created_at).toLocaleDateString(undefined, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  <time dateTime={project.created_at}>
+                    {new Date(project.created_at).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </time>
                 </p>
-                <Link href={projectStudioPath(project)}>Open project</Link>
+                <div className="project-library-cardFooter">
+                  <Link
+                    className="project-library-link"
+                    href={projectStudioPath(project)}
+                    aria-label={`Open in Studio: ${project.name}`}
+                  >
+                    Open in Studio
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </Link>
+                </div>
               </article>
             </li>
           ))}
