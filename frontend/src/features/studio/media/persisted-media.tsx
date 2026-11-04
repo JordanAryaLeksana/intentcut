@@ -52,8 +52,6 @@ export function PersistedMedia({
     retry: false,
   });
 
-  // Stop the browser request when leaving the project.
-  // This does not guarantee cancellation on the backend.
   useEffect(() => {
     return () => {
       uploadController.current?.abort();

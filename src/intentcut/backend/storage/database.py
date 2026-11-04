@@ -128,7 +128,7 @@ class Database:
             return session.get(Project, project_id)
 
     def list_recoverable_ai_jobs(
-        self, project_id: UUID, *, limit: int = 20
+        self, project_id: UUID, *, limit: int = 20, pipeline: str | None = None
     ) -> list[AIJob]:
         """Newest first-cut/highlight jobs for a project, newest first.
 
@@ -151,6 +151,7 @@ class Database:
                         AIJob.request_payload["pipeline_version"].astext.in_(
                             ("uploaded_v1", "highlight_v1")
                         ),
+                        True if pipeline is None else AIJob.request_payload["pipeline_version"].astext == pipeline,
                     )
                     .order_by(AIJob.created_at.desc(), AIJob.id.desc())
                     .limit(limit)

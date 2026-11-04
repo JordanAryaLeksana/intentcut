@@ -20,7 +20,7 @@ class AIJobResponse(BaseModel):
     attempt_count: int
     error_code: str | None
     progress: AIJobProgress | None = None
-
+    pipeline_version: str | None = None
 
 class AIJobAcceptedResponse(BaseModel):
     id: UUID

@@ -1,10 +1,13 @@
 "use client";
 
+import { useEditingScope } from "./workflow";
+
 import { useQuery } from "@tanstack/react-query";
 import { savedDraftOptions } from "./use-editing";
 import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { useDraftStore } from "./store/use-draft-store";
 import { DraftTimeline } from "./draft-timeline";
+import { HighlightWorkspace } from "./highlights/highlight-workspace";
 import { useActiveJobId, useEditorStore } from "./store/use-editor-store";
 import { useAIJobStatus } from "./ai-director/hooks/use-ai-job-status";
 import { useAIArtifacts } from "./ai-director/hooks/use-ai-artifacts";
@@ -60,11 +63,12 @@ export function StoryboardCuts({ storyboard }: { storyboard: PublicStoryboard })
 }
 
 function LoadedStoryboard({ projectId, jobId, artifactId }: { projectId: string; jobId: string; artifactId: string }) {
+  const { scope } = useEditingScope(projectId);
   const storyboard = usePublicStoryboard(projectId, jobId, artifactId, true);
   const receive = useDraftStore((state) => state.receive);
   useEffect(() => {
-    if (storyboard.data && useEditorStore.getState().activeJobByProject[projectId] === jobId) receive(projectId, { jobId, artifactId }, storyboard.data);
-  }, [projectId, jobId, artifactId, storyboard.data, receive]);
+    if (storyboard.data && useEditorStore.getState().activeJobByProject[scope] === jobId) receive(scope, { jobId, artifactId }, storyboard.data);
+  }, [scope, projectId, jobId, artifactId, storyboard.data, receive]);
   if (storyboard.isError) return <TimelineMessage title="We couldn’t load your story plan" retry={() => void storyboard.refetch()}>Your video is saved. Try again to see the plan — nothing will be created again.</TimelineMessage>;
   if (storyboard.isPending) return <TimelineMessage title="Loading your story">Opening your story plan…</TimelineMessage>;
   return <StoryboardCuts storyboard={storyboard.data} />;
@@ -80,46 +84,55 @@ function JobStoryboard({ projectId, jobId }: { projectId: string; jobId: string 
 }
 
 export function JobTimeline({ projectId, jobId }: { projectId: string; jobId: string }) {
+  const { workflow } = useEditingScope(projectId);
   const job = useAIJobStatus(projectId, jobId);
   // Your story stays readable if only the progress check fails.
   if (job.isError && job.data?.status !== "succeeded") return <TimelineMessage title="We couldn’t check on your video" retry={() => void job.refetch()}>Your saved work may still be there. Nothing new was started.</TimelineMessage>;
-  if (!job.data) return <TimelineMessage title="Loading your video">Checking on your first cut…</TimelineMessage>;
+  if (!job.data) return <TimelineMessage title="Loading your video">Checking on your video…</TimelineMessage>;
   switch (job.data.status) {
     case "queued": return <TimelineMessage title="Waiting to create your video">Your story will appear here when it is ready.</TimelineMessage>;
     case "running": return <TimelineMessage title="Creating your video">We are putting your story together…</TimelineMessage>;
-    case "failed": return <TimelineMessage title="Your video couldn’t be created">Open AI Director to see what happened and try again.</TimelineMessage>;
+    case "failed": return <TimelineMessage title="Your video couldn’t be created">Open {workflow === "highlights" ? "AI Highlights" : "AI First Cut"} to see what happened and try again.</TimelineMessage>;
     case "succeeded": return <JobStoryboard projectId={projectId} jobId={jobId} />;
     default: return <TimelineMessage title="We couldn’t read that update">Your video sent back something we don’t understand. Try checking again.</TimelineMessage>;
   }
 }
 
 function ConnectedTimeline({ projectId }: { projectId: string }) {
+  const { workflow, scope } = useEditingScope(projectId);
   const jobId = useActiveJobId(projectId);
-  const draft = useDraftStore((state) => state.byProject[projectId]);
-  const restored = useDraftStore((state) => state.restoredByProject[projectId]);
+  const draft = useDraftStore((state) => state.byProject[scope]);
+  const restored = useDraftStore((state) => state.restoredByProject[scope]);
   const restore = useDraftStore((state) => state.restore);
-  const saved = useQuery(savedDraftOptions(projectId));
-  useEffect(() => {if (saved.isSuccess) restore(projectId, saved.data);}, [projectId, restore, saved.isSuccess, saved.data]);
+  const saved = useQuery(savedDraftOptions(projectId, workflow));
+  useEffect(() => {if (saved.isSuccess) restore(scope, saved.data);}, [scope, projectId, restore, saved.isSuccess, saved.data]);
   if (!restored) {
     if (saved.isError) return <TimelineMessage title="We couldn’t reopen your draft" retry={() => void saved.refetch()}>Your saved edits are still saved. Try again before you keep editing.</TimelineMessage>;
     return <TimelineMessage title="Reopening your draft">Bringing back your saved edits…</TimelineMessage>;
   }
+  if (workflow === "highlights") return <>
+    <HighlightWorkspace key={scope} projectId={projectId} draft={draft} />
+    {/* Keep recovery for a newly generated job mounted, even while editing an
+        older draft. The existing receive() logic handles pending newer cuts. */}
+    {draft && jobId && jobId !== draft.base.jobId && <div hidden><JobTimeline key={jobId} projectId={projectId} jobId={jobId} /></div>}
+  </>;
   return <>
-    {draft && <DraftTimeline projectId={projectId} draft={draft} />}
+    {draft && <DraftTimeline key={scope} projectId={projectId} draft={draft} />}
     <div hidden={Boolean(draft)} style={draft ? undefined : { display: "contents" }}>
       {jobId
         ? <JobTimeline key={jobId} projectId={projectId} jobId={jobId} />
-        : <TimelineMessage title="No video yet">Create your first cut with AI Director to see your story here.</TimelineMessage>}
+        : <TimelineMessage title="No video yet">{workflow === "highlights" ? "Create AI Highlights from your source video and creative prompt to see the moments here." : "Create your first cut with AI Director to see your story here."}</TimelineMessage>}
     </div>
   </>;
 }
 
 export function NarrativeTimeline({ projectId }: { projectId?: string }) {
+  const { workflow } = useEditingScope(projectId ?? "");
   return (
     <section className="studio-panel studio-timeline" aria-labelledby="timeline-heading" data-tour="timeline">
-      <header className="studio-panelHeader"><h2 id="timeline-heading">Timeline</h2><span>Review and refine your edit</span></header>
+      <header className="studio-panelHeader"><h2 id="timeline-heading">{workflow === "highlights" ? "AI Highlight Navigator" : "Timeline"}</h2><span>{workflow === "highlights" ? "Why these moments · Explore and refine" : "Review and refine your edit"}</span></header>
       <div className="studio-timelineBody">
-        <div className="studio-trackLabel"><span className="studio-overline">Your story</span><span>Moments in order</span></div>
+        {workflow !== "highlights" && <div className="studio-trackLabel"><span className="studio-overline">Your story</span><span>Moments in order</span></div>}
         {projectId
           ? <ConnectedTimeline key={projectId} projectId={projectId} />
           : <TimelineMessage title="Every story starts with a first scene">Open a project to see your story here.</TimelineMessage>}

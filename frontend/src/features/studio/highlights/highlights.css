@@ -55,6 +55,250 @@
 .highlight-mode label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .highlight-mode input[type="radio"] { accent-color: var(--primary); }
 .highlight-note { margin: 0; font-size: 11px; color: var(--muted-foreground); }
+.highlight-navigator.studio-directorBody { padding: 0; }
+.highlight-intro { padding: 4px 16px 12px; line-height: 1.6; }
+.highlight-section { gap: 12px; padding: 18px 16px; min-width: 0; }
+.highlight-section h3 { font-size: 16px; }
+.highlight-section textarea { min-height: 112px; resize: vertical; line-height: 1.6; }
+.highlight-note { line-height: 1.6; }
+.highlight-navigator .processing-lifecycle, .highlight-navigator .revision-chat { margin: 16px; }
+.highlight-navigator .highlight-success { margin: 16px; padding: 12px; border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border)); border-radius: 6px; color: var(--primary); line-height: 1.6; }
+.highlight-presets { display: flex; gap: 6px; }
+.highlight-presets button { flex: 1; min-height: 36px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer; }
+.highlight-presets button[aria-pressed='true'] { color: var(--primary); border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
+.highlight-listButton { display: grid; grid-template-columns: auto 1fr; width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 6px; gap: 6px 10px; }
+.highlight-listButton > span:nth-child(2) { text-align: right; font-variant-numeric: tabular-nums; font-size: 11px; }
+.highlight-listButton > span:last-child { grid-column: 1 / -1; margin-left: 0; white-space: normal; }
+.highlight-listButton[aria-pressed='true'] { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
+.highlight-navigator button:disabled { opacity: .5; cursor: not-allowed; }
+.highlight-navigator select { text-overflow: ellipsis; }
+@media (max-width: 899px) {
+  .highlight-presets button, .highlight-navigator select, .highlight-navigator input[type='number'] { min-height: 44px; }
+  .highlight-navigator textarea, .highlight-navigator select, .highlight-navigator input[type='number'] { font-size: 16px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .highlight-marker { transition: none; }
+}
+
+/* Full-width Highlights editing workspace. The original First Cut timeline is untouched. */
+.highlight-workspace { display: grid; gap: 16px; padding: 16px; min-width: 0; }
+.highlight-workspaceEmpty { padding: 24px; color: var(--muted-foreground); }
+.highlight-workspaceHeading { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 10px; }
+.highlight-workspaceHeading h3 { font-size: 16px; margin: 0 0 6px; }
+.highlight-workspaceSaved { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted-foreground); margin: 0; }
+.highlight-workspaceGrid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.highlight-workspaceCandidates, .highlight-workspaceDetails, .highlight-workspaceEdit { min-width: 0; border: 1px solid var(--border); border-radius: 6px; padding: 14px; }
+.highlight-workspace h4 { font-size: 13px; margin: 0 0 12px; }
+.highlight-workspace .highlight-list { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
+.highlight-workspace .highlight-listButton { height: 100%; }
+.highlight-workspaceDetails { display: grid; gap: 12px; }
+.highlight-workspaceDetails h4 { margin: 0; }
+.highlight-workspaceDetails p { margin: 0; line-height: 1.6; }
+.highlight-workspace .highlight-preview { width: 100%; max-height: 330px; object-fit: contain; }
+.highlight-workspaceOrder { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
+.highlight-workspaceOrder > li { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 5px; padding: 8px 10px; font-size: 12px; }
+.highlight-workspaceOrder .studio-draftActions { margin-left: auto; }
+.highlight-workspaceOrder .studio-draftActions button { min-width: 36px; }
+.highlight-workspace .studio-draftToolbar { margin-bottom: 12px; }
+.highlight-workspace .studio-draftPersistence { margin-top: 14px; }
+@media (max-width: 899px) {
+  .highlight-workspaceGrid { grid-template-columns: minmax(0, 1fr); }
+  .highlight-workspace { padding: 10px; }
+  .highlight-workspace .highlight-list { grid-template-columns: minmax(0, 1fr); }
+}
+
+
+/* Highlights v3: keep sequence editing with Rework your story in the right dock;
+   reserve the entire lower panel for the AI Moment Navigator and video preview. */
+.highlight-selectedStory {
+  display: grid; gap: 12px; min-width: 0;
+  margin: 16px; padding: 14px;
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.highlight-selectedStoryHeader { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; }
+.highlight-selectedStoryHeader h3 { font-size: 14px; margin: 0; }
+.highlight-selectedStoryHeader span { font-size: 11px; color: var(--muted-foreground); }
+.highlight-selectedStoryOrder { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.highlight-selectedStoryOrder > li { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--border); border-radius: 5px; min-width: 0; }
+.highlight-selectedStoryCut { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.highlight-selectedStoryTime { font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.highlight-selectedStory .studio-draftActions { display: flex; gap: 5px; flex-wrap: wrap; }
+.highlight-selectedStory .studio-draftActions button { min-height: 30px; min-width: 30px; }
+.highlight-selectedStory .studio-draftPersistence { min-width: 0; border-top: 1px solid var(--border); padding-top: 10px; }
+.highlight-selectedStory .studio-draftPersistence p { overflow-wrap: anywhere; }
+.highlight-selectedStory .studio-draftPersistence .studio-draftActions { margin-top: 8px; }
+
+/* The selected source moment remains the main subject in the lower workspace. */
+.highlight-workspaceGrid { grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr); }
+.highlight-workspaceDetails { align-content: start; }
+.highlight-workspace .highlight-preview { width: 100%; max-height: none; aspect-ratio: 16 / 9; object-fit: contain; display: block; }
+.highlight-workspaceCandidates { align-self: start; }
+@media (max-width: 899px) {
+  .highlight-workspaceGrid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Highlights polish: keep panels anchored while a source preview is preparing. */
+.highlight-workspace {
+  align-content: start;
+  grid-auto-rows: max-content;
+  gap: 12px;
+}
+.highlight-workspaceGrid {
+  align-items: start;
+  grid-template-columns: minmax(0, 1.8fr) minmax(250px, 1fr);
+  gap: 12px;
+}
+.highlight-workspaceDetails,
+.highlight-workspaceCandidates { align-self: start; }
+.highlight-workspaceDetails { align-content: start; }
+.highlight-samplingDetails {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+  padding: 0 0 10px;
+}
+.highlight-samplingDetails summary { cursor: pointer; width: fit-content; }
+.highlight-samplingDetails p { margin: 8px 0 0; line-height: 1.5; max-width: 76ch; }
+.highlight-previewFrame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0b0e12;
+}
+.highlight-previewFrame > .highlight-preview {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  object-fit: contain;
+  opacity: 0;
+}
+.highlight-previewFrame > .highlight-preview.is-ready { opacity: 1; }
+.highlight-previewPlaceholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted-foreground);
+  background: #0b0e12;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.highlight-previewPlaceholder strong { color: var(--foreground); font-size: 14px; }
+.highlight-previewPlaceholderIcon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, #0b0e12);
+  color: var(--primary);
+  font-size: 17px;
+}
+.highlight-previewPlaceholder .button { margin-top: 6px; }
+@media (max-width: 899px) {
+  .highlight-workspaceGrid { grid-template-columns: minmax(0, 1fr); }
+}
+/* Full-width Highlights Navigator */
+
+.studio-timeline:has(.highlight-workspace) {
+  min-width: 0;
+  width: 100%;
+  max-width: none;
+}
+
+.studio-timeline:has(.highlight-workspace) .studio-timelineBody {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+.studio-timeline:has(.highlight-workspace) .highlight-workspace {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.studio-timeline:has(.highlight-workspace) .highlight-workspaceGrid {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+@media (max-width: 899px) {
+  .studio-timeline:has(.highlight-workspace) .highlight-workspaceGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Highlights: prevent the bottom workspace from clipping */
+
+.studio-timeline:has(.highlight-workspace) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.studio-timeline:has(.highlight-workspace) > .studio-panelHeader {
+  flex: 0 0 auto;
+}
+
+.studio-timeline:has(.highlight-workspace) > .studio-timelineBody {
+  display: block;
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* Keep the video large, but prevent excessive height */
+.highlight-workspace .highlight-previewFrame {
+  width: 100%;
+  max-width: 680px;
+  aspect-ratio: 16 / 9;
+}
+
+.highlight-workspace .highlight-previewFrame > video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* AI Highlights — Full-width moment preview */
+
+.highlight-workspaceDetails {
+  min-width: 0;
+  width: 100%;
+}
+
+.highlight-workspaceDetails .highlight-previewFrame {
+  width: 100%;
+  max-width: none;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+}
+
+.highlight-workspaceDetails .highlight-previewFrame > video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }

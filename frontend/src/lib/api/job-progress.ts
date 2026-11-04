@@ -2,6 +2,7 @@ import type { AIJobProgress, AIProgressStage } from "./contracts";
 import { ApiError, isRecord } from "./transport";
 
 export const PROGRESS_STAGES: readonly AIProgressStage[] = [
+  "discovering_highlights", "refining_highlights",
   "generating_image", "validating_image",
   "preparing_media", "extracting_audio", "transcribing_audio", "validating_transcript", "extracting_windows", "understanding_footage",
   "selecting_story", "revising_sequence", "rendering_video", "publishing_artifacts",
@@ -25,7 +26,7 @@ export function parseJobProgress(value: unknown): AIJobProgress | null {
   if (hasCounts && (
     value.stage !== "understanding_footage" ||
     typeof completed !== "number" || !Number.isSafeInteger(completed) || completed < 0 ||
-    typeof total !== "number" || !Number.isSafeInteger(total) || total < 1 || total > 12 ||
+    typeof total !== "number" || !Number.isSafeInteger(total) || total < 1 || total > 30 ||
     completed > total
   )) {
     throw new ApiError("Invalid AI window counts.", 0, "invalid_response");

@@ -29,7 +29,7 @@ from intentcut.backend.storage.database import CommitOutcomeUnknown, Database
 from intentcut.backend.storage.database_models import AIJob
 from intentcut.backend.transcription.processor import TranscriptionProcessor
 from intentcut.backend.visuals.processor import VisualProcessor
-
+from pydantic import ValidationError as PydanticValidationError
 logger = logging.getLogger(__name__)
 
 JobProcessor = Callable[
@@ -56,9 +56,6 @@ class AIJobWorker:
             artifact_publisher is None or allow_artifact_free_processor
         ):
             raise ValueError("Real processing requires artifact publication")
-        # Preserve direct adapter construction used by existing callers, while
-        # giving those production adapters the same capability fence as the CLI.
-        # The highlight subclass must be fenced before its parent class.
         if isinstance(processor, HighlightProcessingAdapter):
             processor = JobDispatcher(
                 [
@@ -211,11 +208,31 @@ class AIJobWorker:
                 # Files remain for reconciliation; recovery handles a rolled-back job.
                 logger.error("AI job completion outcome uncertain: %s", job.id)
             except Exception as exc:
-                logger.error(
-                    "AI job processing failed: job=%s type=%s",
-                    job.id,
-                    type(exc).__name__,
-                )
+                # logger.error(
+                #     "AI job processing failed: job=%s type=%s",
+                #     job.id,
+                #     type(exc).__name__,
+                # )
+
+                if isinstance(exc, PydanticValidationError):
+                    logger.error(
+                        "VALIDATION DEBUG job=%s model=%s errors=%s",
+                        job.id,
+                        exc.title,
+                        [
+                            {
+                                "field": error["loc"],
+                                "type": error["type"],
+                                "message": error["msg"],
+                            }
+                            for error in exc.errors(
+                                include_input=False,
+                                include_context=False,
+                                include_url=False,
+                            )
+                        ],
+                    )
+                logger.exception("AI job processing failed: %s", exc)
                 if not ownership_lost.is_set():
                     failed = self._database.fail_ai_job(
                         project_id=job.project_id,

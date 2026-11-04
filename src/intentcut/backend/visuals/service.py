@@ -95,7 +95,10 @@ class VisualService:
                 id=body.request_id,
                 project_id=project,
                 status="queued",
-                request_payload=payload,
+                request_payload={
+                    **payload,
+                    "display_name": body.name,
+                },
             )
             session.add(job)
             session.flush()
@@ -132,6 +135,7 @@ class VisualService:
                 "items": [
                     {
                         "id": j.id,
+                        "name": j.request_payload.get("display_name"),
                         "status": j.status,
                         "error_code": j.error_code
                         if j.error_code in PUBLIC_JOB_ERROR_CODES
@@ -205,3 +209,32 @@ class VisualService:
                 current.revision += 1
             session.flush()
             return self.cover_response(current)
+    def rename(self, project: UUID, job_id: UUID, name: str):
+        with self.database._sessions.begin() as session:
+            job = session.scalar(
+                select(AIJob)
+                .where(
+                    AIJob.id == job_id,
+                    AIJob.project_id == project,
+                    AIJob.request_payload["pipeline_version"].astext == PIPELINE,
+                )
+                .with_for_update()
+            )
+
+            if job is None:
+                raise AIJobAPIError(
+                    404, "not_found", "Image not found."
+                )
+
+            if job.status != "succeeded":
+                raise AIJobAPIError(
+                    409, "image_not_ready",
+                    "Only completed images can be renamed.",
+                )
+
+            payload = dict(job.request_payload)
+            payload["display_name"] = name
+            job.request_payload = payload
+            session.flush()
+
+            return {"id": job.id, "name": name}

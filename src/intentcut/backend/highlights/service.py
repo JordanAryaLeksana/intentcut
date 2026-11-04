@@ -1,9 +1,14 @@
 """Highlight admission, local discovery, and bounded clip preview."""
 
+import hashlib
+import os
 import shutil
+import stat
 import tempfile
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
+
+from sqlalchemy import func, select
 
 from intentcut.backend.ai_job_service import AIJobAPIError, AIJobService
 from intentcut.backend.first_cut.media_inputs import (
@@ -16,7 +21,12 @@ from intentcut.backend.highlights.contracts import (
     CandidateResponse,
     HighlightRequest,
 )
-from intentcut.backend.storage.database_models import AIJob, MediaAsset
+from intentcut.backend.highlights.retrieval import (
+    COARSE_SAMPLES,
+    FINE_SAMPLES,
+    MAX_RANK_CALLS,
+)
+from intentcut.backend.storage.database_models import AIJob, MediaAsset, Project
 from intentcut.media.models import MediaProcessError
 from intentcut.media.probe_parser import MediaProbe
 from intentcut.media.window_extract import extract_window
@@ -59,7 +69,16 @@ class HighlightService:
             raise AIJobAPIError(
                 422, "processing_limit", "Candidate count exceeds window budget."
             )
-        if body.max_candidates + 1 > settings.ai_max_inference_requests:
+        if (
+            body.max_candidates + 1 + (0 if body.candidate_ids else MAX_RANK_CALLS)
+            > settings.ai_max_inference_requests
+            or (
+                body.max_candidates * 5
+                if body.candidate_ids
+                else COARSE_SAMPLES + FINE_SAMPLES
+            )
+            > settings.highlight_max_probes
+        ):
             raise AIJobAPIError(
                 422, "processing_limit", "Candidate count exceeds inference budget."
             )
@@ -69,41 +88,143 @@ class HighlightService:
             raise AIJobAPIError(
                 422, "source_unavailable", "Source media is unavailable."
             ) from exc
-        return self.database.create_ai_job(
-            project_id,
-            {
-                **body.model_dump(mode="json"),
-                "pipeline_version": "highlight_v1",
-                "source_sha256": fingerprints,
-            },
-        )
+        payload = {
+            **body.model_dump(mode="json", exclude_none=True),
+            "pipeline_version": "highlight_v1",
+            "source_sha256": fingerprints,
+        }
+        with self.database._sessions.begin() as session:
+            session.scalar(
+                select(Project).where(Project.id == project_id).with_for_update()
+            )
+            if body.request_id:
+                existing = session.get(AIJob, body.request_id)
+                if existing:
+                    if (
+                        existing.project_id != project_id
+                        or existing.request_payload != payload
+                    ):
+                        raise AIJobAPIError(
+                            409,
+                            "request_conflict",
+                            "Request identifier was already used.",
+                        )
+                    return existing
+            predicate = (
+                AIJob.project_id == project_id,
+                AIJob.request_payload["pipeline_version"].astext == "highlight_v1",
+            )
+            # Recover an identical accepted request after a lost response or
+            # refresh, even when the browser no longer has its request ID.
+            signature = {k: v for k, v in payload.items() if k != "request_id"}
+            for prior in session.scalars(
+                select(AIJob).where(
+                    *predicate, AIJob.status.in_(["queued", "running", "succeeded"])
+                ).order_by(AIJob.created_at.desc())
+            ):
+                if {k: v for k, v in prior.request_payload.items() if k != "request_id"} == signature:
+                    return prior
+            if session.scalar(
+                select(AIJob.id)
+                .where(*predicate, AIJob.status.in_(["queued", "running"]))
+                .limit(1)
+            ):
+                raise AIJobAPIError(
+                    409, "highlight_pending", "A highlight job is already processing."
+                )
+            if (
+                session.scalar(
+                    select(func.count()).select_from(AIJob).where(*predicate)
+                )
+                >= settings.highlight_max_jobs_per_project
+            ):
+                raise AIJobAPIError(
+                    422,
+                    "processing_limit",
+                    "This project's highlight job budget is exhausted.",
+                )
+            job = AIJob(
+                id=body.request_id or uuid4(),
+                project_id=project_id,
+                request_payload=payload,
+                status="queued",
+            )
+            session.add(job)
+            session.flush()
+            return job
 
     def _verified_source(
         self, project_id: UUID, asset: MediaAsset, expected_sha256: str
     ) -> Path:
-        """Stream the immutable source to a private temp file; caller deletes it."""
+        """Verify the immutable source and stage it without copying video bytes."""
         tmp_root = self.storage.root / ".tmp"
         tmp_root.mkdir(mode=0o700, exist_ok=True)
         workdir = Path(tempfile.mkdtemp(dir=tmp_root))
+
         try:
             destination = workdir / "source"
-            with (
-                self.storage.open_object(
-                    asset.storage_key, project_id, asset.id
-                ) as stream,
-                destination.open("xb") as out,
-            ):
-                shutil.copyfileobj(stream, out, 1024 * 1024)
-            actual = fingerprint_source(self.storage, asset)
-            if actual != expected_sha256:
-                raise AIJobAPIError(
-                    503, "source_unavailable", "Source media failed verification."
+
+            with self.storage.open_object(
+                asset.storage_key, project_id, asset.id
+            ) as stream:
+                before = os.fstat(stream.fileno())
+
+                digest = hashlib.sha256()
+                while chunk := stream.read(1024 * 1024):
+                    digest.update(chunk)
+
+                after = os.fstat(stream.fileno())
+
+                if (
+                    digest.hexdigest() != expected_sha256
+                    or before.st_size != after.st_size
+                    or before.st_mtime_ns != after.st_mtime_ns
+                    or before.st_ino != after.st_ino
+                    or before.st_dev != after.st_dev
+                ):
+                    raise AIJobAPIError(
+                        503,
+                        "source_unavailable",
+                        "Source media failed verification.",
+                    )
+
+                # Both paths are under the same local storage filesystem.
+                # Hard-linking avoids copying the entire multi-GB source.
+                original = self.storage.root / asset.storage_key
+                os.link(
+                    original,
+                    destination,
+                    follow_symlinks=False,
                 )
+
+                linked = os.lstat(destination)
+
+                # Reject symlinks and ensure the linked inode is exactly
+                # the file verified through the secure storage descriptor.
+                if (
+                    not stat.S_ISREG(linked.st_mode)
+                    or linked.st_dev != after.st_dev
+                    or linked.st_ino != after.st_ino
+                ):
+                    raise AIJobAPIError(
+                        503,
+                        "source_unavailable",
+                        "Source identity changed during staging.",
+                    )
+
             return destination
+
+        except OSError as exc:
+            shutil.rmtree(workdir, ignore_errors=True)
+            raise AIJobAPIError(
+                503,
+                "source_unavailable",
+                "Source media could not be staged.",
+            ) from exc
+
         except BaseException:
             shutil.rmtree(workdir, ignore_errors=True)
             raise
-
     def _cleanup_source(self, source: Path) -> None:
         shutil.rmtree(source.parent, ignore_errors=True)
 
@@ -184,7 +305,7 @@ class HighlightService:
                     503, "source_unavailable", "Source media is unavailable."
                 ) from exc
             try:
-                return extract_window(
+                clip = extract_window(
                     source,
                     source.parent / "preview.mp4",
                     start_seconds=start_seconds,
@@ -192,6 +313,12 @@ class HighlightService:
                     video_stream_index=metadata.video.index,
                     audio_stream_index=metadata.audio.index if metadata.audio else None,
                 )
+
+                # The source copy is no longer needed after FFmpeg finishes.
+                # Keep only the small preview MP4 for the HTTP response.
+                source.unlink()
+
+                return clip
             except (MediaProcessError, ValueError, FileNotFoundError) as exc:
                 raise AIJobAPIError(
                     503, "source_unavailable", "Preview extraction failed."

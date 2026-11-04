@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter
 
-from intentcut.backend.visuals.contracts import CoverRequest, VisualRequest
+from intentcut.backend.visuals.contracts import CoverRequest, RenameImageRequest, VisualRequest
 from intentcut.backend.visuals.service import VisualService
 
 
@@ -27,5 +27,12 @@ def create_visual_router(service: VisualService):
     @router.put("/cover")
     def cover(project_id: UUID, body: CoverRequest):
         return service.set_cover(project_id, body)
-
+    
+    @router.patch("/{job_id}/name")
+    def rename_image(
+        project_id: UUID,
+        job_id: UUID,
+        body: RenameImageRequest,
+    ):
+        return service.rename(project_id, job_id, body.name)
     return router

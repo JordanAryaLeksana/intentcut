@@ -59,7 +59,10 @@ export const useDraftStore = create<DraftState>()((set) => {
   return {
     byProject: {},
     savedByProject: {}, restoredByProject: {}, previewByProject: {},
-    setPreview: (projectId, jobId) => set((state) => ({ previewByProject: {...state.previewByProject, [projectId]: jobId} })),
+    setPreview: (projectId, jobId) => {
+      try { sessionStorage.setItem(`intentcut:preview:${projectId}`, JSON.stringify(jobId)); } catch { /* Optional session persistence. */ }
+      set((state) => ({ previewByProject: {...state.previewByProject, [projectId]: jobId} }));
+    },
     applyAccepted: (projectId, saved, expectedLocalRevision) => set((state) => {
       const current = state.byProject[projectId];
       let next = current;
@@ -72,9 +75,18 @@ export const useDraftStore = create<DraftState>()((set) => {
     }),
     saved: (projectId, saved) => set((state) => ({savedByProject: {...state.savedByProject, [projectId]: saved}})),
     restore: (projectId, saved, force = false) => set((state) => {
-      if (state.restoredByProject[projectId] && !force) return state;
+      const previous = state.savedByProject[projectId];
+      if (state.restoredByProject[projectId] && !force) {
+        // Query cache updates acknowledge the server head without erasing local edits.
+        if (previous === saved || (previous && (!saved || previous.revision > saved.revision))) return state;
+        return { savedByProject: { ...state.savedByProject, [projectId]: saved } };
+      }
       const next = { ...state.byProject };
-      if (saved && (force || !next[projectId])) {
+      const current = next[projectId];
+      // An artifact may arrive before the initial GET. Prefer persisted ordering
+      // over its untouched original sequence, but preserve edits made locally.
+      if (saved && (force || !current || (!isDraftDirty(current) &&
+          current.base.jobId === saved.base_job_id && current.base.artifactId === saved.base_artifact_id))) {
         const draft = createDraft({jobId:saved.base_job_id, artifactId:saved.base_artifact_id}, saved.storyboard);
         const allowed = new Map(draft.cuts.map(c => [c.window_index, c]));
         draft.cuts = saved.window_indices.flatMap(i => {const cut = allowed.get(i); return cut ? [cut] : [];});

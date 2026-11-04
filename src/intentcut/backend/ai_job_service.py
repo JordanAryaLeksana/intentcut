@@ -81,9 +81,16 @@ class AIJobService:
             raise AIJobAPIError(404, "not_found", "Resource not found.")
         return job
 
-    def list_recoverable(self, project_id: UUID) -> list[AIJob]:
+    def list_recoverable(
+        self, project_id: UUID, workflow: str | None = None
+    ) -> list[AIJob]:
         """Jobs Studio may adopt on reopen, newest first. Read-only."""
-        return self.database.list_recoverable_ai_jobs(project_id)
+        return self.database.list_recoverable_ai_jobs(
+            project_id,
+            pipeline={"first_cut": "uploaded_v1", "highlights": "highlight_v1"}.get(
+                workflow
+            ),
+        )
 
     def artifacts(self, project_id: UUID, job_id: UUID) -> list[AIJobArtifact]:
         self.get(project_id, job_id)

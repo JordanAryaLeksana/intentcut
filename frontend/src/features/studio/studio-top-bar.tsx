@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { WorkflowSwitcher } from "./workflow";
 import { useQuery } from "@tanstack/react-query";
 import { getProject } from "@/lib/api/projects";
 import { TAKE_TOUR_EVENT } from "./studio-tour-logic";
-import { draftMatchesSaved, useDraftStore } from "./store/use-draft-store";
+import { DraftSaveStatus } from "./save-draft-control";
 import { usePreviewJob } from "./use-editing";
 import { useAIJobStatus } from "./ai-director/hooks/use-ai-job-status";
 
@@ -25,12 +26,6 @@ function JobState({ projectId }: { projectId: string }) {
   return <span className="studio-renderState" role="status">{manual ? `Video version ${manual.revision} · ${job.isError ? "We couldn’t check its status" : renderStateLabel(job.data?.status ?? manual.status)}` : jobId ? renderStateLabel(job.data?.status, job.isError) : "No video yet"}</span>;
 }
 
-function DraftState({ projectId }: { projectId: string }) {
-  const draft = useDraftStore((state) => state.byProject[projectId]);
-  const saved = useDraftStore((state) => state.savedByProject[projectId]);
-  return <span className="studio-draftState">{draft ? draftMatchesSaved(draft,saved) ? `Draft saved · Version ${saved?.revision}` : "Unsaved changes" : "No draft yet"}</span>;
-}
-
 function ProjectTitle({ projectId }: { projectId: string }) {
   const project = useQuery({
     queryKey: ["projects", projectId, "title"] as const,
@@ -47,11 +42,12 @@ export function StudioTopBar({ projectId }: { projectId?: string }) {
       <Link href="/" className="studio-brand" aria-label="IntentCut home" translate="no"><span aria-hidden="true">/</span> IntentCut</Link>
       <div className="studio-project">
         {projectId ? <ProjectTitle projectId={projectId} /> : <h1>Studio preview</h1>}
-        <span className="studio-badge">{projectId ? "Saved project" : "Preview only"}</span>
+        <span className="studio-badge">{projectId ? "Project workspace" : "Preview only"}</span>
       </div>
+      {projectId && <WorkflowSwitcher projectId={projectId} />}
       <div className="studio-toolbarState">
         {projectId ? <JobState key={projectId} projectId={projectId} /> : <span>Open a project to begin</span>}
-        {projectId ? <DraftState projectId={projectId} /> : <span className="studio-draftState">Open a project to save a draft</span>}
+        {projectId ? <DraftSaveStatus projectId={projectId} /> : <span className="studio-draftState">Open a project to save a draft</span>}
       </div>
       <nav className="studio-toolbarActions" aria-label="Project actions">
         <Link href="/studio" className="studio-toolbarLink">All projects</Link>

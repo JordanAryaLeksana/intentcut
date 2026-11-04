@@ -7,7 +7,7 @@ import {createRequire} from "node:module";
 const require=createRequire(import.meta.url);
 const {QueryClient,QueryClientProvider}=require("@tanstack/react-query");
 import {useDraftStore,draftMatchesSaved} from "../store/use-draft-store.ts";
-import {RenderVersionPicker} from "../draft-persistence.tsx";
+import {RenderVersionPicker,renderSummary} from "../draft-persistence.tsx";
 import {renderVersionsKey,renderVersionsOptions} from "../use-editing.ts";
 import {getSavedDraft,saveDraft,renderDraft,parseSavedDraft} from "../../../lib/api/editing.ts";
 const project="f93aa0e0-4ada-463c-a7c5-086ddeecd4b9";
@@ -75,4 +75,24 @@ test("render versions poll only active jobs and allow selecting historical outpu
   assert.equal(options.refetchInterval({state:{data:[{status:"running"}],error:null}}),2000);
   assert.equal(options.refetchInterval({state:{data:[{status:"succeeded"}],error:null}}),false);
   c.clear();
+});
+
+test("manual render states never describe admitted work as not yet made",()=>{
+ for(const [status,label] of [["queued","Queued"],["running","Rendering"],["succeeded","Ready"],["failed","Failed"]]){
+  assert.match(renderSummary(status),new RegExp(label));
+  assert.doesNotMatch(renderSummary(status),/haven’t made/);
+ }
+ const options=renderVersionsOptions(project);
+ assert.equal(options.refetchInterval({state:{data:[{status:"queued"}],error:new Error("temporary")}}),2000);
+ assert.equal(options.refetchInterval({state:{data:[{status:"succeeded"}],error:null}}),false);
+});
+
+test("render success invalidates job details and artifacts once per status transition",async()=>{reset();
+ const client=new QueryClient();const calls=[];
+ client.invalidateQueries=async options=>{calls.push(options.queryKey);};
+ client.setQueryData(renderVersionsKey(project),[{job_id:job,revision:3,status:"running"}]);
+ globalThis.fetch=async()=>Response.json({items:[{job_id:job,revision:3,status:"succeeded"}]});
+ await client.fetchQuery(renderVersionsOptions(project));
+ assert.deepEqual(calls,[["projects",project,"ai-jobs",job],["projects",project,"ai-jobs",job,"artifacts"]]);
+ await client.fetchQuery(renderVersionsOptions(project));assert.equal(calls.length,2);client.clear();
 });

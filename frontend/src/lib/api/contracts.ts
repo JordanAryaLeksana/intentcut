@@ -58,6 +58,8 @@ export type AIJobStatus = "queued" | "running" | "succeeded" | "failed";
 
 export type AIProgressStage =
   | "generating_image" | "validating_image"
+  | "discovering_highlights"
+  | "refining_highlights"
   | "preparing_media"
   | "extracting_audio" | "transcribing_audio" | "validating_transcript" | "extracting_windows"
   | "understanding_footage"
@@ -85,6 +87,7 @@ export interface AIJob {
   error_code: string | null;
   /** Optional for historical API responses; null when no active stage is known. */
   progress?: AIJobProgress | null;
+  pipeline_version?:"uploaded_v1" | "highlight_v1" | null;
 }
 
 /** Artifact kind remains a string until the backend literal/enum is confirmed. */

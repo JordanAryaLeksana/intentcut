@@ -1,4 +1,5 @@
 import "./studio.css";
+import { StudioWorkflow } from "./workflow";
 import { StudioTopBar } from "./studio-top-bar";
 import { MediaLibrary } from "./media-library";
 import { ProgramMonitor } from "./program-monitor";
@@ -8,7 +9,7 @@ import { StudioTour } from "./studio-tour";
 
 export function StudioShell({ projectId }: { projectId?: string }) {
   return (
-    <div className="studio-shell">
+    <StudioWorkflow projectId={projectId}><div className="studio-shell">
       <a href="#workspace" className="button button-primary sr-only focus:not-sr-only focus:absolute focus:left-6 focus:top-4 focus:z-10">Skip to workspace</a>
       <StudioTopBar projectId={projectId} />
       <main
@@ -30,6 +31,6 @@ export function StudioShell({ projectId }: { projectId?: string }) {
       </main>
       <StudioTour />
       <footer className="studio-footer"><span>IntentCut Studio</span><span>Your drafts and videos are saved to this project</span></footer>
-    </div>
+    </div></StudioWorkflow>
   );
 }

@@ -177,6 +177,16 @@ def test_exact_saved_revision_rerenders_real_reordered_and_removed_video(
     assert admitted.status_code == 202, admitted.text
     job = admitted.json()["id"]
     assert api.post(path + "/renders", json={"revision": 1}).json()["id"] == job
+    assert api.get(path + "/renders").json()["items"] == [
+        {"job_id": job, "revision": 1, "status": "queued"}
+    ]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        duplicate_ids = list(pool.map(
+            lambda _: api.post(path + "/renders", json={"revision": 1}).json()["id"],
+            range(2),
+        ))
+    assert duplicate_ids == [job, job]
+    assert len(api.get(path + "/renders").json()["items"]) == 1
     # Mutate head after admission: job must render immutable revision 1 with both cuts.
     api.put(
         path, json={**body, "expected_revision": 1, "window_indices": reordered[:1]}

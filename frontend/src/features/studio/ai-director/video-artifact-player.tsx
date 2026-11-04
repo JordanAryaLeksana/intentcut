@@ -15,6 +15,7 @@ interface VideoArtifactPlayerProps {
   jobId: string;
   artifactId: string;
   sizeBytes: number;
+  autoLoad?: boolean;
 }
 
 export function VideoArtifactPlayer({
@@ -22,6 +23,7 @@ export function VideoArtifactPlayer({
   jobId,
   artifactId,
   sizeBytes,
+  autoLoad = false,
 }: VideoArtifactPlayerProps) {
   const { preview, load, cancel } = useVideoArtifact(
     projectId,
@@ -29,6 +31,16 @@ export function VideoArtifactPlayer({
     artifactId,
     sizeBytes,
   );
+
+  useEffect(() => {
+    let active = true;
+    // Defer until mount effects settle so Strict Mode's discarded mount cannot
+    // start a duplicate download. No delay or polling is involved.
+    void Promise.resolve().then(() => {
+      if (active && autoLoad && sizeBytes > 0 && sizeBytes <= MAX_PREVIEW_BYTES) void load();
+    });
+    return () => { active = false; };
+  }, [autoLoad, sizeBytes, load]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const trackRef = useRef<{video: HTMLVideoElement; track: TextTrack} | null>(null);

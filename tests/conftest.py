@@ -60,6 +60,13 @@ def fake_muse():
             self.selection_indices = None
             self.on_select = None
 
+        def rank_highlights(self, samples, intent):
+            from intentcut.ai.highlight_retrieval import SampleRanking
+            assert intent.strip()
+            assert all(path.is_file() for _, _, path in samples)
+            return SampleRanking(samples=[{"sample_id": i, "relevance": 0.8,
+                "evidence": "Fixture visible color"} for i, _, _ in samples])
+
         def analyze(self, clip):
             assert clip.is_file()
             self.analyzed.append(clip)

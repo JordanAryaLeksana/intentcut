@@ -29,6 +29,8 @@ export function useAIArtifacts(
 
     retry: 1,
 
+    refetchOnMount: query => query.state.data?.items.some(item => item.kind === "video") ? false : "always",
+
     staleTime: 30_000,
 
     refetchOnWindowFocus: false,

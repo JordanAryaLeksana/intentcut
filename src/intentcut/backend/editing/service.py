@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 
 from intentcut.backend.ai_job_service import AIJobAPIError, AIJobService
 from intentcut.backend.artifacts.schemas import PublicStoryboard
+from intentcut.backend.editing.workflow import Workflow, job_workflow
 from intentcut.backend.storage.database_models import AIJob, EditDraft, Project
 
 
@@ -83,10 +84,10 @@ class EditingService:
                 )
         return storyboard, cuts, fingerprints
 
-    def get(self, project_id: UUID):
+    def get(self, project_id: UUID, workflow: Workflow = "first_cut"):
         self.database.require_project(project_id)
         with self.database._sessions() as session:
-            draft = session.get(EditDraft, project_id)
+            draft = session.get(EditDraft, (project_id, workflow))
         if draft is None:
             return None
         storyboard, _, _ = self.resolve(
@@ -105,20 +106,28 @@ class EditingService:
             "storyboard": storyboard.model_dump(mode="json", exclude_none=True),
         }
 
-    def save(self, project_id: UUID, body: SaveDraft):
+    def save(self, project_id: UUID, body: SaveDraft, workflow: Workflow = "first_cut"):
         storyboard, _, _ = self.resolve(
             project_id, body.base_job_id, body.base_artifact_id, body.window_indices
         )
+        base = self.jobs.get(project_id, body.base_job_id)
+        expected_pipeline = (
+            "highlight_v1" if workflow == "highlights" else "uploaded_v1"
+        )
+        if base.request_payload.get("pipeline_version") != expected_pipeline:
+            raise AIJobAPIError(
+                422, "invalid_base", "Choose a storyboard from this workflow."
+            )
         # A project row lock serializes first insert, updates and render admission.
         with self.database._sessions.begin() as session:
             session.scalar(
                 select(Project).where(Project.id == project_id).with_for_update()
             )
-            current = session.get(EditDraft, project_id)
+            current = session.get(EditDraft, (project_id, workflow))
             if (current.revision if current else 0) != body.expected_revision:
                 raise conflict()
             if current is None:
-                current = EditDraft(project_id=project_id)
+                current = EditDraft(project_id=project_id, workflow=workflow)
                 session.add(current)
             current.base_job_id = body.base_job_id
             current.base_artifact_id = body.base_artifact_id
@@ -128,8 +137,10 @@ class EditingService:
             session.flush()
             return self.response(current, storyboard)
 
-    def render(self, project_id: UUID, body: RenderDraft):
-        saved = self.get(project_id)
+    def render(
+        self, project_id: UUID, body: RenderDraft, workflow: Workflow = "first_cut"
+    ):
+        saved = self.get(project_id, workflow)
         if saved is None or saved["revision"] != body.revision:
             raise conflict()
         storyboard, cuts, fingerprints = self.resolve(
@@ -144,6 +155,7 @@ class EditingService:
             )
         payload = {
             "pipeline_version": "manual_v1",
+            "workflow": workflow,
             "draft_revision": body.revision,
             "base_job_id": str(saved["base_job_id"]),
             "base_artifact_id": str(saved["base_artifact_id"]),
@@ -168,7 +180,7 @@ class EditingService:
             session.scalar(
                 select(Project).where(Project.id == project_id).with_for_update()
             )
-            current = session.get(EditDraft, project_id)
+            current = session.get(EditDraft, (project_id, workflow))
             if current is None or current.revision != body.revision:
                 raise conflict()
             # One immutable render job per revision; retries reuse the same identity.
@@ -176,6 +188,7 @@ class EditingService:
                 select(AIJob).where(
                     AIJob.project_id == project_id,
                     AIJob.request_payload["pipeline_version"].astext == "manual_v1",
+                    job_workflow(workflow),
                     AIJob.request_payload["draft_revision"].astext
                     == str(body.revision),
                 )
@@ -195,7 +208,7 @@ class EditingService:
                 session.flush()
             return job
 
-    def renders(self, project_id: UUID):
+    def renders(self, project_id: UUID, workflow: Workflow = "first_cut"):
         self.database.require_project(project_id)
         with self.database._sessions() as session:
             jobs = session.scalars(
@@ -203,6 +216,7 @@ class EditingService:
                 .where(
                     AIJob.project_id == project_id,
                     AIJob.request_payload["pipeline_version"].astext == "manual_v1",
+                    job_workflow(workflow),
                 )
                 .order_by(AIJob.created_at.desc(), AIJob.id.desc())
                 .limit(100)

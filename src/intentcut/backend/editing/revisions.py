@@ -9,6 +9,7 @@ from intentcut.ai.revision import RevisionSelection, validate_revision
 from intentcut.backend.ai_job_service import AIJobAPIError
 from intentcut.backend.contracts import AIProcessingError, JobLeaseLost, ProposalResult
 from intentcut.backend.editing.service import EditingService, conflict
+from intentcut.backend.editing.workflow import Workflow, job_workflow
 from intentcut.backend.storage.database_models import (
     AIJob,
     EditDraft,
@@ -33,7 +34,9 @@ class RevisionService:
     def __init__(self, editing: EditingService):
         self.editing, self.database = editing, editing.database
 
-    def request(self, project_id: UUID, body: RevisionRequest):
+    def request(
+        self, project_id: UUID, body: RevisionRequest, workflow: Workflow = "first_cut"
+    ):
         if not body.instruction.strip():
             raise AIJobAPIError(422, "invalid_request", "Describe the sequence change.")
         settings = self.editing.jobs.settings
@@ -46,7 +49,7 @@ class RevisionService:
             raise AIJobAPIError(
                 503, "revision_unavailable", "AI revisions are not configured."
             )
-        saved = self.editing.get(project_id)
+        saved = self.editing.get(project_id, workflow)
         if not saved or saved["revision"] != body.draft_revision:
             raise conflict()
         _, cuts, _ = self.editing.resolve(
@@ -63,6 +66,7 @@ class RevisionService:
             )
         payload = {
             "pipeline_version": "revision_v1",
+            "workflow": workflow,
             "base_revision": body.draft_revision,
             "base_job_id": str(saved["base_job_id"]),
             "base_artifact_id": str(saved["base_artifact_id"]),
@@ -94,6 +98,7 @@ class RevisionService:
                 .where(
                     AIJob.project_id == project_id,
                     AIJob.request_payload["pipeline_version"].astext == "revision_v1",
+                    job_workflow(workflow),
                     AIJob.status.in_(["queued", "running"]),
                 )
                 .limit(1)
@@ -102,7 +107,7 @@ class RevisionService:
                 raise AIJobAPIError(
                     409, "revision_pending", "A revision request is already processing."
                 )
-            head = session.get(EditDraft, project_id)
+            head = session.get(EditDraft, (project_id, workflow))
             if head is None or head.revision != body.draft_revision:
                 raise conflict()
             job = AIJob(
@@ -116,13 +121,18 @@ class RevisionService:
             session.add(RevisionProposal(job_id=job.id, state="pending"))
         return body.request_id
 
-    def read(self, project_id: UUID, proposal_id: UUID):
+    def read(
+        self, project_id: UUID, proposal_id: UUID, workflow: Workflow = "first_cut"
+    ):
         job = self.editing.jobs.get(project_id, proposal_id)
-        if job.request_payload.get("pipeline_version") != "revision_v1":
+        if (
+            job.request_payload.get("pipeline_version") != "revision_v1"
+            or job.request_payload.get("workflow", "first_cut") != workflow
+        ):
             raise AIJobAPIError(404, "not_found", "Resource not found.")
         with self.database._sessions() as session:
             proposal = session.get(RevisionProposal, proposal_id)
-            head = session.get(EditDraft, project_id)
+            head = session.get(EditDraft, (project_id, workflow))
         if proposal is None:
             raise AIJobAPIError(404, "not_found", "Resource not found.")
         payload = job.request_payload
@@ -170,7 +180,7 @@ class RevisionService:
             "applied_revision": proposal.applied_revision,
         }
 
-    def list(self, project_id: UUID):
+    def list(self, project_id: UUID, workflow: Workflow = "first_cut"):
         self.database.require_project(project_id)
         with self.database._sessions() as session:
             ids = session.scalars(
@@ -178,14 +188,19 @@ class RevisionService:
                 .where(
                     AIJob.project_id == project_id,
                     AIJob.request_payload["pipeline_version"].astext == "revision_v1",
+                    job_workflow(workflow),
                 )
                 .order_by(AIJob.created_at.desc(), AIJob.id.desc())
                 .limit(50)
             ).all()
-        return {"items": [self.read(project_id, i) for i in ids]}
+        return {"items": [self.read(project_id, i, workflow) for i in ids]}
 
     def decide(
-        self, project_id: UUID, proposal_id: UUID, expected_revision: int | None
+        self,
+        project_id: UUID,
+        proposal_id: UUID,
+        expected_revision: int | None,
+        workflow: Workflow = "first_cut",
     ):
         self.editing.jobs.get(project_id, proposal_id)
         stale = False
@@ -202,6 +217,7 @@ class RevisionService:
             if (
                 proposal is None
                 or job.request_payload.get("pipeline_version") != "revision_v1"
+                or job.request_payload.get("workflow", "first_cut") != workflow
             ):
                 raise AIJobAPIError(404, "not_found", "Resource not found.")
             if expected_revision is None:
@@ -217,7 +233,7 @@ class RevisionService:
                     job.lease_token = job.lease_expires_at = None
                     job.finished_at = session.scalar(select(func.clock_timestamp()))
             else:
-                head = session.get(EditDraft, project_id)
+                head = session.get(EditDraft, (project_id, workflow))
                 if (
                     proposal.state == "accepted"
                     and head
@@ -251,8 +267,12 @@ class RevisionService:
                     )
         if stale:
             raise conflict()
-        response = self.read(project_id, proposal_id)
-        saved = self.editing.get(project_id) if expected_revision is not None else None
+        response = self.read(project_id, proposal_id, workflow)
+        saved = (
+            self.editing.get(project_id, workflow)
+            if expected_revision is not None
+            else None
+        )
         if saved is not None and saved["revision"] != response["applied_revision"]:
             raise conflict()
         return {"proposal": response, "draft": saved}
@@ -264,7 +284,7 @@ class RevisionProcessor:
 
     def __call__(self, job):
         payload = job.request_payload
-        saved = self.editing.get(job.project_id)
+        saved = self.editing.get(job.project_id, payload.get("workflow", "first_cut"))
         if not saved or saved["revision"] != payload["base_revision"]:
             raise AIProcessingError("draft_revision_changed")
         if not self.database.update_ai_job_progress(

@@ -229,3 +229,52 @@
 .studio-visualFrame { position: relative; height: 220px; background: var(--background); }
 .studio-visualFrame img { object-fit: contain; }
 @media (max-width:600px) { .studio-visualBody button, .studio-visualBody a { min-height: 44px; } }
+
+/* The shared editing draft save action lives in Rework your story. */
+.studio-saveControl { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
+.studio-saveControl .button:disabled { opacity: .45; cursor: default; }
+.studio-saveError { flex-basis: 100%; max-width: 330px; font-size: 12px; overflow-wrap: anywhere; }
+.studio-saveError p { margin-bottom: 8px; }
+.studio-toolbarState { min-width: 0; }
+@media (max-width: 899px) {
+  .studio-toolbarActions { flex-wrap: wrap; }
+}
+@media (max-width: 899px) {
+  .studio-project { min-width: 140px; }
+  .studio-toolbarState { flex-basis: 100%; }
+}
+
+/* One continuous processing spine; history scrolls independently of Rework. */
+.processing-lifecycle { min-width: 0; }
+.processing-lifecycleHeading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.processing-lifecycleHeading h3 { font-size: 13px; font-weight: 500; }
+.processing-lifecycle .studio-processingJob { margin-top: 12px; }
+.processing-jump { color: var(--primary); font-size: 11px; min-height: 36px; cursor: pointer; }
+.processing-current { margin-bottom: 18px; }
+.processing-history { max-height: 360px; max-height: min(360px, 45dvh); overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; padding: 4px 6px 4px 0; overflow-wrap: anywhere; }
+.processing-history:focus-visible, .processing-jump:focus-visible, .processing-lifecycle summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.processing-milestones .processing-phaseLabel { color: var(--primary); font-size: 10px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; margin: 0 0 10px; padding-top: 12px; }
+.processing-milestones > li:first-child .processing-phaseLabel { padding-top: 0; }
+.processing-milestones li:has(> .processing-phaseLabel)::before { top: 16px; }
+.processing-milestones > li:first-child:has(> .processing-phaseLabel)::before { top: 4px; }
+.processing-milestones li[data-current='true'] { border-left-color: var(--primary); background: linear-gradient(90deg, rgb(137 220 194 / 6%), transparent); }
+.processing-milestones li[data-state='rejected']::before { border-radius: 1px; border-color: var(--muted-foreground); }
+.processing-instruction { margin-top: 8px; }
+.processing-instruction summary { cursor: pointer; min-height: 36px; display: list-item; align-content: center; }
+.processing-instruction p { white-space: pre-wrap; }
+.processing-history .processing-jobId { margin-top: 4px; }
+.processing-empty { font-size: 12px; color: var(--muted-foreground); line-height: 1.6; }
+@media (max-width: 899px) {
+  .processing-jump, .processing-instruction summary { min-height: 44px; }
+}
+
+/* Workflow ownership stays visible while the shared editor follows the selection. */
+.studio-workflowSwitch { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 5px; }
+.studio-workflowSwitch button { min-height: 36px; padding: 6px 12px; font-size: 12px; color: var(--muted-foreground); cursor: pointer; border-radius: 3px; }
+.studio-workflowSwitch button[aria-pressed='true'] { background: color-mix(in srgb, var(--primary) 12%, var(--surface)); color: var(--primary); }
+.studio-workflowSwitch button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.highlight-navigator .highlight-section > input, .highlight-navigator .highlight-section > select { max-width: 100%; width: 100%; }
+.highlight-navigator .highlight-section > label { margin-top: 12px; }
+.highlight-navigator .highlight-section > .button { margin-top: 12px; }
+.highlight-navigator .highlight-listButton { min-height: 44px; width: 100%; text-align: left; }
+@media (max-width: 899px) { .studio-workflowSwitch button { min-height: 44px; } }

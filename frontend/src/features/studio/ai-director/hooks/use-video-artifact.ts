@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { downloadAIArtifact } from "@/lib/api/artifacts";
 
 export const MAX_PREVIEW_BYTES = 100 * 1024 * 1024;
@@ -32,6 +32,7 @@ export function useVideoArtifact(
     return () => {
       mountedRef.current = false;
       controllerRef.current?.abort();
+      controllerRef.current = null;
 
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
@@ -40,7 +41,7 @@ export function useVideoArtifact(
     };
   }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (controllerRef.current || objectUrlRef.current) {
       return;
     }
@@ -92,7 +93,7 @@ export function useVideoArtifact(
       objectUrlRef.current = url;
       setPreview({ status: "ready", url });
     } catch (error) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || controller.signal.aborted) return;
 
       if (controller.signal.aborted) {
         setPreview({ status: "idle" });
@@ -110,7 +111,7 @@ export function useVideoArtifact(
         controllerRef.current = null;
       }
     }
-  }
+  }, [projectId, jobId, artifactId, sizeBytes]);
 
   function cancel() {
     controllerRef.current?.abort();

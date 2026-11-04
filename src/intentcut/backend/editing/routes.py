@@ -5,26 +5,27 @@ from uuid import UUID
 from fastapi import APIRouter
 
 from intentcut.backend.editing.service import EditingService, RenderDraft, SaveDraft
+from intentcut.backend.editing.workflow import Workflow
 
 
 def create_editing_router(service: EditingService) -> APIRouter:
     router = APIRouter(prefix="/projects/{project_id}/edit-draft", tags=["editing"])
 
     @router.get("")
-    def get_draft(project_id: UUID):
-        return {"draft": service.get(project_id)}
+    def get_draft(project_id: UUID, workflow: Workflow = "first_cut"):
+        return {"draft": service.get(project_id, workflow)}
 
     @router.put("")
-    def save_draft(project_id: UUID, body: SaveDraft):
-        return service.save(project_id, body)
+    def save_draft(project_id: UUID, body: SaveDraft, workflow: Workflow = "first_cut"):
+        return service.save(project_id, body, workflow)
 
     @router.get("/renders")
-    def renders(project_id: UUID):
-        return {"items": service.renders(project_id)}
+    def renders(project_id: UUID, workflow: Workflow = "first_cut"):
+        return {"items": service.renders(project_id, workflow)}
 
     @router.post("/renders", status_code=202)
-    def render(project_id: UUID, body: RenderDraft):
-        job = service.render(project_id, body)
+    def render(project_id: UUID, body: RenderDraft, workflow: Workflow = "first_cut"):
+        job = service.render(project_id, body, workflow)
         return {
             "id": job.id,
             "status": job.status,

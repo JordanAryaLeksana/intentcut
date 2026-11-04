@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ProgressStage = Literal[
     "preparing_media",
+    "discovering_highlights",
+    "refining_highlights",
     "generating_image",
     "validating_image",
     "extracting_windows",
@@ -22,6 +24,8 @@ ProgressStage = Literal[
 
 STAGES: tuple[ProgressStage, ...] = (
     "preparing_media",
+    "discovering_highlights",
+    "refining_highlights",
     "generating_image",
     "validating_image",
     "extracting_windows",
@@ -43,7 +47,7 @@ class AIJobProgress(BaseModel):
     stage_started_at: datetime
     updated_at: datetime
     completed_windows: int | None = Field(default=None, ge=0, strict=True)
-    total_windows: int | None = Field(default=None, ge=1, le=12, strict=True)
+    total_windows: int | None = Field(default=None, ge=1, le=30, strict=True)
 
     @model_validator(mode="after")
     def valid_counts_and_times(self) -> "AIJobProgress":
