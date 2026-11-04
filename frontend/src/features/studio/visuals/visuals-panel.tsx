@@ -1,5 +1,6 @@
 "use client";
 
+import { useEditingScope } from "../workflow";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,15 +13,13 @@ import {
   type VisualHistory,
   type VisualJob,
   type VisualRequest,
+  renameVisualImage,
 } from "@/lib/api/visuals";
 import { useCaptionStore } from "../captions/store";
 import { monitorVideo, visualReference } from "../monitor-video";
 import { usePreviewJob } from "../use-editing";
 import { useAIArtifacts } from "../ai-director/hooks/use-ai-artifacts";
 import { useAIJobStatus } from "../ai-director/hooks/use-ai-job-status";
-
-export const visualHistoryKey = (project: string) =>
-  ["projects", project, "visual-assets"] as const;
 
 export function visualPolling(value?: VisualHistory): number | false {
   return value?.items.some(
@@ -30,8 +29,94 @@ export function visualPolling(value?: VisualHistory): number | false {
     : false;
 }
 
+export const visualHistoryKey = (project: string) =>
+  ["projects", project, "visual-assets"] as const;
 
+function visualDisplayName(job: VisualJob): string {
+  if (job.name?.trim()) return job.name.trim();
 
+  const type =
+    job.preset === "thumbnail"
+      ? "Thumbnail"
+      : job.preset === "cover"
+        ? "Cover image"
+        : "Poster";
+
+  const mode = job.operation === "edit" ? "Edited" : "Generated";
+
+  return `${type} · ${mode}`;
+}
+
+function RenameImage({
+  project,
+  job,
+  onSaved,
+}: {
+  project: string;
+  job: VisualJob;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(job.name ?? "");
+
+  useEffect(() => {
+    setName(job.name ?? "");
+  }, [job.id, job.name]);
+
+  const rename = useMutation({
+    mutationFn: () => renameVisualImage(project, job.id, name.trim()),
+    retry: false,
+    onSuccess: onSaved,
+  });
+
+  const cleanName = name.trim();
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+
+        if (
+          cleanName &&
+          cleanName !== job.name &&
+          !rename.isPending
+        ) {
+          rename.mutate();
+        }
+      }}
+    >
+      <label htmlFor={`visual-name-${job.id}`}>
+        Image name
+      </label>
+
+      <input
+        id={`visual-name-${job.id}`}
+        type="text"
+        value={name}
+        maxLength={80}
+        onChange={(e) => setName(e.target.value)}
+        required
+      />
+
+      <button
+        type="submit"
+        className="button button-secondary"
+        disabled={
+          rename.isPending ||
+          !cleanName ||
+          cleanName === job.name
+        }
+      >
+        {rename.isPending ? "Saving..." : "Save name"}
+      </button>
+
+      {rename.isError && (
+        <p role="alert">
+          Couldn't save image name. Please try again.
+        </p>
+      )}
+    </form>
+  );
+}
 export function VisualImage({
   project,
   job,
@@ -49,6 +134,7 @@ export function VisualImage({
     url?: string;
     error?: boolean;
   }>({ key: "" });
+
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const abort = new AbortController();
@@ -69,8 +155,10 @@ export function VisualImage({
       if (url) URL.revokeObjectURL(url);
     };
   }, [project, job, artifact, key, attempt]);
+
   if (result.key !== key || (!result.url && !result.error))
     return <p role="status">Loading verified image…</p>;
+
   if (result.error)
     return (
       <p role="alert">
@@ -84,6 +172,7 @@ export function VisualImage({
         </button>
       </p>
     );
+
   return (
     <div className="studio-visualImage">
       <div className="studio-visualFrame">
@@ -109,6 +198,7 @@ function VisualStatus({ project, job }: { project: string; job: VisualJob }) {
   const observed = useAIJobStatus(project, job.id);
   const status = observed.data?.status ?? job.status;
   const stage = observed.data?.progress?.stage;
+
   let copy =
     status === "queued"
       ? "Waiting to start"
@@ -159,9 +249,13 @@ export function VisualPromptForm({
   images,
   pending,
   onSubmit,
+  name,
+  setName,
 }: {
   prompt: string;
   setPrompt: (v: string) => void;
+  name?: string;
+  setName?: (v: string) => void;
   preset: VisualJob["preset"];
   setPreset: (v: VisualJob["preset"]) => void;
   operation: VisualJob["operation"];
@@ -194,6 +288,23 @@ export function VisualPromptForm({
           required
         />
       </label>
+      <label htmlFor="visual-name">
+        Image name (optional)
+        <input
+          id="visual-name"
+          type="text"
+          value={name ?? ""}
+          onChange={(e) => setName?.(e.target.value)}
+          maxLength={80}
+          placeholder="e.g. Cinematic Travel Thumbnail"
+        />
+      </label>
+
+      <p className="studio-storyboardNote">
+        Give this image a name to find it easily in your library. This won't
+        affect the AI-generated image.
+      </p>
+      
       <label htmlFor="visual-preset">
         What is it for?
         <select
@@ -245,7 +356,7 @@ export function VisualPromptForm({
                 .filter((i) => i.artifact_id)
                 .map((i) => (
                   <option key={i.id} value={i.artifact_id ?? ""}>
-                    {i.preset} image
+                    {visualDisplayName(i)}
                   </option>
                 ))}
             </select>
@@ -287,9 +398,10 @@ export function VisualPromptForm({
   );
 }
 function ConnectedVisuals({ project }: { project: string }) {
+  const { scope } = useEditingScope(project);
   const client = useQueryClient();
   const { jobId: baseJob } = usePreviewJob(project);
-  const override = useCaptionStore((state) => state.previews[project]);
+  const override = useCaptionStore((state) => state.previews[scope]);
   const jobId = override?.jobId ?? baseJob;
   const artifacts = useAIArtifacts(project, jobId);
   const video = monitorVideo(
@@ -305,6 +417,7 @@ function ConnectedVisuals({ project }: { project: string }) {
       q.state.error ? false : visualPolling(q.state.data),
   });
   const [prompt, setPrompt] = useState("");
+  const [name, setName] = useState("");
   const [preset, setPreset] = useState<VisualJob["preset"]>("thumbnail");
   const [operation, setOperation] =
     useState<VisualJob["operation"]>("generate");
@@ -314,13 +427,15 @@ function ConnectedVisuals({ project }: { project: string }) {
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const refresh = () =>
     void client.invalidateQueries({ queryKey: visualHistoryKey(project) });
+
   const submission = useMutation({
     mutationFn: () => {
-      const body: VisualRequest = {
+    const body: VisualRequest = {
         request_id: requestId,
         prompt,
         preset,
         operation,
+        ...(name.trim() ? { name: name.trim() } : {}),
       };
       if (operation === "edit") {
         body.source_artifact_id = selectedSource;
@@ -331,6 +446,7 @@ function ConnectedVisuals({ project }: { project: string }) {
     retry: false,
     onSuccess: () => {
       setRequestId(crypto.randomUUID());
+      setName("");
       refresh();
     },
   });
@@ -376,6 +492,8 @@ function ConnectedVisuals({ project }: { project: string }) {
         prompt={prompt}
         setPrompt={setPrompt}
         preset={preset}
+        name={name}
+        setName={setName}
         setPreset={setPreset}
         operation={operation}
         setOperation={setOperation}
@@ -417,14 +535,14 @@ function ConnectedVisuals({ project }: { project: string }) {
       )}
       {data.items.map((job) => (
         <article key={job.id} className="studio-visualAsset">
-          <h4>
-            {job.preset === "thumbnail"
-              ? "Thumbnail"
-              : job.preset === "cover"
-                ? "Cover image"
-                : "Poster"}{" "}
-            · {job.operation === "edit" ? "Edited" : "New image"}
-          </h4>
+          <h4>{visualDisplayName(job)}</h4>
+          {job.status === "succeeded" && (
+              <RenameImage
+                project={project}
+                job={job}
+                onSaved={refresh}
+              />
+            )}
           <p>
             {job.source_artifact_id
               ? "Started from one of your images"

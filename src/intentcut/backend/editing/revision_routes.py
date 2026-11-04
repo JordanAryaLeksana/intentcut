@@ -7,6 +7,7 @@ from intentcut.backend.editing.revisions import (
     RevisionRequest,
     RevisionService,
 )
+from intentcut.backend.editing.workflow import Workflow
 
 
 def create_revision_router(service: RevisionService):
@@ -15,27 +16,36 @@ def create_revision_router(service: RevisionService):
     )
 
     @router.post("", status_code=202)
-    def request_revision(project_id: UUID, body: RevisionRequest):
-        proposal_id = service.request(project_id, body)
+    def request_revision(
+        project_id: UUID, body: RevisionRequest, workflow: Workflow = "first_cut"
+    ):
+        proposal_id = service.request(project_id, body, workflow)
         return {
             "id": proposal_id,
             "status_url": f"/projects/{project_id}/edit-draft/proposals/{proposal_id}",
         }
 
     @router.get("")
-    def list_proposals(project_id: UUID):
-        return service.list(project_id)
+    def list_proposals(project_id: UUID, workflow: Workflow = "first_cut"):
+        return service.list(project_id, workflow)
 
     @router.get("/{proposal_id}")
-    def get_proposal(project_id: UUID, proposal_id: UUID):
-        return service.read(project_id, proposal_id)
+    def get_proposal(
+        project_id: UUID, proposal_id: UUID, workflow: Workflow = "first_cut"
+    ):
+        return service.read(project_id, proposal_id, workflow)
 
     @router.post("/{proposal_id}/accept")
-    def accept(project_id: UUID, proposal_id: UUID, body: AcceptRevision):
-        return service.decide(project_id, proposal_id, body.expected_revision)
+    def accept(
+        project_id: UUID,
+        proposal_id: UUID,
+        body: AcceptRevision,
+        workflow: Workflow = "first_cut",
+    ):
+        return service.decide(project_id, proposal_id, body.expected_revision, workflow)
 
     @router.post("/{proposal_id}/reject")
-    def reject(project_id: UUID, proposal_id: UUID):
-        return service.decide(project_id, proposal_id, None)
+    def reject(project_id: UUID, proposal_id: UUID, workflow: Workflow = "first_cut"):
+        return service.decide(project_id, proposal_id, None, workflow)
 
     return router

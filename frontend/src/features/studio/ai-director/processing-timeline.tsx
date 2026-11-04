@@ -73,16 +73,17 @@ export function FirstCutMilestones({ job, unconfirmed = false, label }: {
 export function ProcessingOverview({ job, now = null, unconfirmed = false, recoveryAction }: {
   job: ObservedJob; now?: number | null; unconfirmed?: boolean; recoveryAction?: ReactNode;
 }) {
+  const cutName = job.pipeline_version === "highlight_v1" ? "highlights" : "first cut";
   const progress = !unconfirmed && job.status === "running" ? job.progress : null;
   const stage = progress ? STAGE_COPY[progress.stage] : null;
   const title = unconfirmed ? "We lost touch — showing your last update"
     : job.status === "queued" ? "Waiting to start"
-    : job.status === "succeeded" ? "Your first cut is ready"
-    : job.status === "failed" ? "We couldn’t create your first cut"
+    : job.status === "succeeded" ? `Your ${cutName} ${cutName === "highlights" ? "are" : "is"} ready`
+    : job.status === "failed" ? `We couldn’t create your ${cutName}`
     : stage?.title ?? "Creating your video…";
   const description = unconfirmed ? "This is the last update we could confirm. Check again to see where things stand."
     : job.status === "queued" ? "Your video is waiting its turn. We’ll start as soon as we can."
-    : job.status === "succeeded" ? "Your first cut is ready to watch and refine below."
+    : job.status === "succeeded" ? `Your ${cutName} ${cutName === "highlights" ? "are" : "is"} ready to watch and refine below.`
     : job.status === "failed" ? failureDescription(job.error_code)
     : stage?.description ?? "Your video is being created. New details will appear here.";
   const count = progress?.completed_windows != null && progress.total_windows != null

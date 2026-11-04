@@ -31,7 +31,7 @@ export function useDirectorForm(projectId: string) {
   const jobStatus = useAIJobStatus(projectId, jobId);
   const recovery = useQuery({
     queryKey: directorJobsKey(projectId),
-    queryFn: ({ signal }) => listAIJobs(projectId, signal),
+    queryFn: async ({ signal }) => (await listAIJobs(projectId, signal, "first_cut")).filter(job => job.pipeline_version === "uploaded_v1"),
     retry: false, staleTime: 0,
   });
 
@@ -90,7 +90,7 @@ export function useDirectorForm(projectId: string) {
     let posting = false;
     try {
       // Recheck server work immediately before POST (including work from another tab).
-      const jobs = await listAIJobs(projectId);
+      const jobs = (await listAIJobs(projectId, undefined, "first_cut")).filter(job => job.pipeline_version === "uploaded_v1");
       client.setQueryData(directorJobsKey(projectId), jobs);
       const active = jobs.find(isProcessing);
       if (active) { adopt(active.id); return; }

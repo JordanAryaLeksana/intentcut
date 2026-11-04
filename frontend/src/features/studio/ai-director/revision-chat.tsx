@@ -1,5 +1,8 @@
 "use client";
 
+import { useEditingScope } from "../workflow";
+
+import type { EditingWorkflow } from "@/lib/api/workflow";
 import { useRef, useState } from "react";
 import {
   queryOptions,
@@ -20,12 +23,12 @@ import { SaveDraftControl } from "../save-draft-control";
 import { useSaveDraft } from "../use-save-draft";
 import { savedDraftKey } from "../use-editing";
 
-export const proposalsKey = (projectId: string) =>
-  ["projects", projectId, "revision-proposals"] as const;
-export const proposalOptions = (projectId: string) =>
+export const proposalsKey = (projectId: string, workflow: EditingWorkflow = "first_cut") =>
+  ["projects", projectId, "revision-proposals", ...(workflow === "first_cut" ? [] : [workflow])] as const;
+export const proposalOptions = (projectId: string, workflow: EditingWorkflow = "first_cut") =>
   queryOptions({
-    queryKey: proposalsKey(projectId),
-    queryFn: ({ signal }) => listProposals(projectId, signal),
+    queryKey: proposalsKey(projectId, workflow),
+    queryFn: ({ signal }) => listProposals(projectId, signal, workflow),
     retry: false,
     refetchOnWindowFocus: true,
     refetchInterval: (query) =>
@@ -63,9 +66,10 @@ export function ProposalReview({
   projectId: string;
   proposal: RevisionProposal;
 }) {
+  const { workflow, scope } = useEditingScope(projectId);
   const client = useQueryClient();
-  const saved = useDraftStore((s) => s.savedByProject[projectId]);
-  const draft = useDraftStore((s) => s.byProject[projectId]);
+  const saved = useDraftStore((s) => s.savedByProject[scope]);
+  const draft = useDraftStore((s) => s.byProject[scope]);
   const { applyAccepted, restore } = useDraftStore();
   const [reloadError, setReloadError] = useState(false);
   const aligned = Boolean(
@@ -78,7 +82,7 @@ export function ProposalReview({
   );
   const decide = useMutation({
     mutationFn: async (accept: boolean) => {
-      const current = useDraftStore.getState().byProject[projectId];
+      const current = useDraftStore.getState().byProject[scope];
       if (accept && (!aligned || !current))
         throw new Error("Save or reload the current draft before acceptance.");
       const localRevision = current?.revision ?? -1;
@@ -86,27 +90,28 @@ export function ProposalReview({
         projectId,
         proposal.id,
         accept ? proposal.base_revision : null,
+        workflow,
       );
       return { ...result, localRevision };
     },
     retry: false,
     onSuccess: (result) => {
       if (result.draft) {
-        applyAccepted(projectId, result.draft, result.localRevision);
-        client.setQueryData(savedDraftKey(projectId), result.draft);
+        applyAccepted(scope, result.draft, result.localRevision);
+        client.setQueryData(savedDraftKey(projectId, workflow), result.draft);
       }
-      void client.invalidateQueries({ queryKey: proposalsKey(projectId) });
+      void client.invalidateQueries({ queryKey: proposalsKey(projectId, workflow) });
     },
     onError: () => {
-      void client.invalidateQueries({ queryKey: proposalsKey(projectId) });
+      void client.invalidateQueries({ queryKey: proposalsKey(projectId, workflow) });
     },
   });
   async function reload() {
     setReloadError(false);
     try {
-      const value = await getSavedDraft(projectId);
-      restore(projectId, value, true);
-      client.setQueryData(savedDraftKey(projectId), value);
+      const value = await getSavedDraft(projectId, undefined, workflow);
+      restore(scope, value, true);
+      client.setQueryData(savedDraftKey(projectId, workflow), value);
     } catch {
       setReloadError(true);
     }
@@ -231,6 +236,7 @@ export function ProposalReview({
 }
 
 export function RevisionChat({ projectId }: { projectId: string }) {
+  const { workflow, scope } = useEditingScope(projectId);
   const [instruction, setInstruction] = useState("");
   const request = useRef<{
     request_id: string;
@@ -240,9 +246,9 @@ export function RevisionChat({ projectId }: { projectId: string }) {
   const submitLock = useRef(false);
   const save = useSaveDraft(projectId);
   const client = useQueryClient();
-  const proposals = useQuery(proposalOptions(projectId));
-  const draft = useDraftStore((s) => s.byProject[projectId]);
-  const saved = useDraftStore((s) => s.savedByProject[projectId]);
+  const proposals = useQuery(proposalOptions(projectId, workflow));
+  const draft = useDraftStore((s) => s.byProject[scope]);
+  const saved = useDraftStore((s) => s.savedByProject[scope]);
   const active = proposals.data?.some(
     (p) => p.job_status === "queued" || p.job_status === "running",
   );
@@ -270,22 +276,22 @@ export function RevisionChat({ projectId }: { projectId: string }) {
           draft_revision: saved.revision,
           instruction: instruction.trim(),
         };
-      return requestRevision(projectId, request.current);
+      return requestRevision(projectId, request.current, workflow);
     },
     retry: false,
     onSuccess: async () => {
       request.current = null;
       setInstruction("");
-      await client.invalidateQueries({ queryKey: proposalsKey(projectId) });
+      await client.invalidateQueries({ queryKey: proposalsKey(projectId, workflow) });
     },
     onError: async () => {
-      await client.invalidateQueries({ queryKey: proposalsKey(projectId) });
+      await client.invalidateQueries({ queryKey: proposalsKey(projectId, workflow) });
     },
     onSettled: () => { submitLock.current = false; },
   });
   return (
-    <section className="studio-revisionChat" aria-labelledby="revision-heading">
-      <h3 id="revision-heading">Rework your story</h3>
+    <section className="studio-revisionChat" aria-labelledby={(workflow === "first_cut" ? "revision-heading" : "revision-heading-highlights")}>
+      <h3 id={(workflow === "first_cut" ? "revision-heading" : "revision-heading-highlights")}>Rework your story</h3>
       <p>
         Ask your AI Director to reorder or remove moments. Nothing changes until
         you approve it. Shortening clips, music, transitions, and new footage
@@ -299,9 +305,9 @@ export function RevisionChat({ projectId }: { projectId: string }) {
           submit.mutate();
         }}
       >
-        <label htmlFor="revision-instruction">What should change?</label>
+        <label htmlFor={(workflow === "first_cut" ? "revision-instruction" : "revision-instruction-highlights")}>What should change?</label>
         <textarea
-          id="revision-instruction"
+          id={(workflow === "first_cut" ? "revision-instruction" : "revision-instruction-highlights")}
           rows={3}
           maxLength={1000}
           required

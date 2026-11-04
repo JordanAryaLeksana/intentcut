@@ -1,5 +1,7 @@
 "use client";
 
+import { useEditingScope } from "../workflow";
+
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api/transport";
@@ -268,6 +270,7 @@ function VideoCaptionsPanel({
   project: string;
   video: string;
 }) {
+  const { scope: workflowKey } = useEditingScope(project);
   const client = useQueryClient();
   const alive = useRef(true);
   useEffect(() => {
@@ -313,7 +316,7 @@ function VideoCaptionsPanel({
           "Your captioned video isn’t ready yet. Check again in a moment.",
         );
       if (!alive.current) return;
-      setPreview(project, {
+      setPreview(workflowKey, {
         jobId: job.id,
         artifactId: artifact.id,
         label: `${job.enabled_cues === 0 ? "Video without captions" : "Video with captions"} · Version ${job.caption_revision}`,
@@ -425,9 +428,10 @@ function VideoCaptionsPanel({
   );
 }
 function ConnectedCaptionsPanel({ projectId }: { projectId: string }) {
+  const { scope } = useEditingScope(projectId);
   const { jobId: base } = usePreviewJob(projectId ?? "");
   const override = useCaptionStore((s) =>
-    projectId ? s.previews[projectId] : undefined,
+    projectId ? s.previews[scope] : undefined,
   );
   const jobId = override?.jobId ?? base;
   const artifacts = useAIArtifacts(projectId ?? "", jobId);

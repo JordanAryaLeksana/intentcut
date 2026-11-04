@@ -1,5 +1,7 @@
 "use client";
 
+import { useEditingScope } from "../../workflow";
+
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { AIJob } from "@/lib/api/contracts";
@@ -11,8 +13,9 @@ import { usePublicStoryboard } from "./use-public-storyboard";
 
 /** Verify the draft's own successful job and artifacts, independently of the latest attempt. */
 export function useEditableFirstCut(projectId: string, activeJobId: string | null, jobs: AIJob[]) {
-  const saved = useQuery(savedDraftOptions(projectId));
-  const draft = useDraftStore(state => state.byProject[projectId]);
+  const { workflow, scope } = useEditingScope(projectId);
+  const saved = useQuery(savedDraftOptions(projectId, workflow));
+  const draft = useDraftStore(state => state.byProject[scope]);
   const restore = useDraftStore(state => state.restore);
   const receive = useDraftStore(state => state.receive);
   const active = useAIJobStatus(projectId, activeJobId);
@@ -27,15 +30,15 @@ export function useEditableFirstCut(projectId: string, activeJobId: string | nul
   const ready = job.data?.status === "succeeded" && video && Boolean(storyboard.data?.cuts.length);
 
   useEffect(() => {
-    if (saved.isSuccess) restore(projectId, saved.data);
-  }, [saved.isSuccess, saved.data, projectId, restore]);
+    if (saved.isSuccess) restore(scope, saved.data);
+  }, [scope, saved.isSuccess, saved.data, projectId, restore]);
 
   useEffect(() => {
     // Recover an unsaved published draft too, without overwriting local edits.
     if (saved.isSuccess && !draft && ready && jobId && storyboardArtifact && storyboard.data) {
-      receive(projectId, { jobId, artifactId: storyboardArtifact.id }, storyboard.data);
+      receive(scope, { jobId, artifactId: storyboardArtifact.id }, storyboard.data);
     }
-  }, [saved.isSuccess, draft, ready, jobId, storyboardArtifact, storyboard.data, projectId, receive]);
+  }, [scope, saved.isSuccess, draft, ready, jobId, storyboardArtifact, storyboard.data, projectId, receive]);
 
   // Keep draft saving reachable even after the user removes every moment.
   return Boolean(ready && draft && draft.base.jobId === jobId);

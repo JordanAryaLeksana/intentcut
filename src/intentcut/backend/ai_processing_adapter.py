@@ -113,6 +113,7 @@ class RealAIProcessingAdapter:
         prepared = []
         sources = []
         remote_bytes = 0
+        retrieval_calls = 0
         # Prepare and validate ALL sources/windows before spending on inference.
         staged_plans = plans if plans is not None else [None] * len(assets)
         for asset, plan in zip(assets, staged_plans, strict=True):
@@ -137,6 +138,8 @@ class RealAIProcessingAdapter:
 
         if plans is None:
             deferred = self._plan_from_staged(job, request, sources)
+            if isinstance(deferred, tuple):
+                deferred, retrieval_calls, remote_bytes = deferred
             if len(deferred) != len(sources):
                 raise AIProcessingError("processing_failed")
             sources = [
@@ -185,9 +188,9 @@ class RealAIProcessingAdapter:
         new_calls = sum(
             not understanding.cache_path(p, cache).exists() for p in prepared
         )
-        if new_calls + 1 > self.settings.ai_max_inference_requests:
+        if retrieval_calls + new_calls + 1 > self.settings.ai_max_inference_requests:
             raise AIProcessingError("processing_limit")
-        requests = 0
+        requests = retrieval_calls
 
         def before_inference() -> None:
             nonlocal requests

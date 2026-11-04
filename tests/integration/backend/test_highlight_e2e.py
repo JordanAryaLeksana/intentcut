@@ -261,7 +261,9 @@ def test_auto_flow_upload_discovery_render_download(
     downloads = {item["kind"]: api.get(item["download_url"]) for item in items}
     assert all(r.status_code == 200 for r in downloads.values())
     storyboard = downloads["storyboard"].json()
-    offsets = {(c["start_seconds"], c["end_seconds"]) for c in candidates}
+    report = storyboard["highlight_discovery"]
+    assert report["coarse_samples"] <= 48 and report["fine_samples"] <= 24
+    offsets = {(c["start_seconds"], c["end_seconds"]) for c in report["candidates"]}
     assert len(storyboard["cuts"]) >= 2
     assert {c["media_id"] for c in storyboard["cuts"]} == {media_id}
     assert [c["playback_order"] for c in storyboard["cuts"]] == list(
@@ -351,10 +353,11 @@ def test_highlight_output_enters_editing_draft_flow(
     job_id = accepted.json()["id"]
 
     path = f"/projects/{project}/edit-draft"
+    api_params = {"workflow": "highlights"}
     # A queued (not yet succeeded) job can never masquerade as a base:
     # its storyboard artifact does not exist, so the save is rejected.
     premature = api.put(
-        path,
+        path, params=api_params,
         json={
             "expected_revision": 0,
             "base_job_id": job_id,
@@ -374,15 +377,15 @@ def test_highlight_output_enters_editing_draft_flow(
         "base_artifact_id": storyboard_ref["id"],
         "window_indices": [c["window_index"] for c in published["cuts"]],
     }
-    saved = api.put(path, json=body)
+    saved = api.put(path, params=api_params, json=body)
     assert saved.status_code == 200, saved.text
     assert saved.json()["revision"] == 1
-    fetched = api.get(path).json()["draft"]
+    fetched = api.get(path, params=api_params).json()["draft"]
     assert fetched == saved.json()
     assert fetched["base_job_id"] == job_id
 
     # The saved highlight draft renders through the existing manual path.
-    admitted = api.post(path + "/renders", json={"revision": 1})
+    admitted = api.post(path + "/renders", params=api_params, json={"revision": 1})
     assert admitted.status_code == 202, admitted.text
     render_id = admitted.json()["id"]
     manual = AIJobWorker(
@@ -393,7 +396,7 @@ def test_highlight_output_enters_editing_draft_flow(
     assert manual.process_one(job_id=UUID(render_id))
     status = api.get(f"/projects/{project}/ai-jobs/{render_id}").json()
     assert status["status"] == "succeeded", status
-    versions = api.get(path + "/renders").json()
+    versions = api.get(path + "/renders", params=api_params).json()
     version_items = versions["items"] if isinstance(versions, dict) else versions
     assert any(v["job_id"] == render_id for v in version_items)
 

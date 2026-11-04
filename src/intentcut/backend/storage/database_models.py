@@ -259,11 +259,17 @@ class EditDraft(Base):
     __table_args__ = (
         CheckConstraint("revision > 0", name="edit_draft_revision"),
         CheckConstraint(
+            "workflow IN ('first_cut', 'highlights')", name="edit_draft_workflow"
+        ),
+        CheckConstraint(
             "jsonb_typeof(window_indices) = 'array'", name="edit_draft_cuts"
         ),
     )
     project_id: Mapped[UUID] = mapped_column(
         ForeignKey("projects.id", ondelete="RESTRICT"), primary_key=True
+    )
+    workflow: Mapped[str] = mapped_column(
+        String(16), primary_key=True, default="first_cut", server_default="first_cut"
     )
     base_job_id: Mapped[UUID] = mapped_column(
         ForeignKey("ai_jobs.id", ondelete="RESTRICT")
@@ -281,6 +287,7 @@ class EditDraft(Base):
 Index(
     "uq_manual_render_revision",
     AIJob.project_id,
+    func.coalesce(AIJob.request_payload["workflow"].astext, "first_cut"),
     AIJob.request_payload["draft_revision"].astext,
     unique=True,
     postgresql_where=AIJob.request_payload["pipeline_version"].astext == "manual_v1",

@@ -14,6 +14,7 @@ class HighlightRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
+    request_id: UUID | None = None
     kind: Literal["highlight"]
     intent: str = Field(min_length=1, max_length=1000)
     target_seconds: float = Field(gt=0, le=120, allow_inf_nan=False, strict=True)

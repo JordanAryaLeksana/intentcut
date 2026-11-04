@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { useEditingScope } from "../workflow";
 
 export const MAX_AI_MEDIA_SELECTION = 10;
 
@@ -76,7 +77,8 @@ export function useSelectedMediaIds(projectId: string) {
   );
 }
 export function useActiveJobId(projectId: string) {
+  const { scope } = useEditingScope(projectId);
   return useEditorStore(
-    (state) => state.activeJobByProject[projectId] ?? null,
+    (state) => state.activeJobByProject[scope] ?? null,
   );
 }

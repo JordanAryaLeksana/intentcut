@@ -1,6 +1,8 @@
 
 "use client";
 
+import { useEditingScope } from "./workflow";
+
 import { monitorVideo } from "./monitor-video";
 import { useCaptionStore } from "./captions/store";
 import { RenderVersionPicker } from "./draft-persistence";
@@ -57,8 +59,9 @@ function RenderedMonitor({
   projectId: string;
   jobId: string;
 }) {
+  const { scope } = useEditingScope(projectId);
   const artifacts = useAIArtifacts(projectId, jobId);
-  const selected = useCaptionStore(state=>state.previews[projectId]);
+  const selected = useCaptionStore(state=>state.previews[scope]);
 
   if (artifacts.isPending) {
     return <MonitorPlaceholder message="Loading your video…" />;
@@ -113,6 +116,7 @@ function JobMonitor({
   projectId: string;
   jobId: string;
 }) {
+  const { workflow } = useEditingScope(projectId);
   const job = useAIJobStatus(projectId, jobId);
 
   // A refresh failure must not tear down an already confirmed preview.
@@ -145,7 +149,7 @@ function JobMonitor({
 
   if (job.data?.status === "failed") {
     return (
-      <MonitorPlaceholder message="This video couldn’t be created. Open AI Director to see what happened." />
+      <MonitorPlaceholder message={`This video couldn’t be created. Open ${workflow === "highlights" ? "AI Highlights" : "AI First Cut"} to see what happened.`} />
     );
   }
 
@@ -169,15 +173,16 @@ function ConnectedProgramMonitor({
 }: {
   projectId: string;
 }) {
+  const { workflow, scope } = useEditingScope(projectId);
   const { jobId: baseJobId, manual, versions } = usePreviewJob(projectId);
-  const captioned = useCaptionStore(state=>state.previews[projectId]);
+  const captioned = useCaptionStore(state=>state.previews[scope]);
   const jobId = captioned?.jobId ?? baseJobId;
 
   if (!captioned && versions.isPending) return <MonitorPlaceholder message="Loading video versions…" />;
 
   if (!jobId) {
     return (
-      <MonitorPlaceholder message="Create your first cut with AI Director to watch it here." />
+      <MonitorPlaceholder message={workflow === "highlights" ? "Describe your highlights and create a draft to watch it here." : "Create your first cut with AI Director to watch it here."} />
     );
   }
 
@@ -196,13 +201,14 @@ function ConnectedProgramMonitor({
 }
 
 function DraftPreviewNotice({ projectId }: { projectId: string }) {
-  const captioned = useCaptionStore(state=>state.previews[projectId]);
-  const draft = useDraftStore((state) => state.byProject[projectId]);
-  const saved = useDraftStore((state) => state.savedByProject[projectId]);
+  const { workflow, scope } = useEditingScope(projectId);
+  const captioned = useCaptionStore(state=>state.previews[scope]);
+  const draft = useDraftStore((state) => state.byProject[scope]);
+  const saved = useDraftStore((state) => state.savedByProject[scope]);
   const {manual} = usePreviewJob(projectId);
   const matches = draft && saved && draftMatchesSaved(draft,saved) && manual?.revision === saved.revision && manual.status === "succeeded";
   if (captioned) return <span>{captioned.label} · Ready to watch</span>;
-  return <span>{manual ? `Version ${manual.revision} · ${manual.status === "succeeded" ? "ready" : manual.status}` : "Your first cut"} · {matches ? "This is your saved draft" : "Your edits aren’t in this preview yet"}</span>;
+  return <span>{manual ? `Version ${manual.revision} · ${manual.status === "succeeded" ? "ready" : manual.status}` : workflow === "highlights" ? "Your highlights" : "Your first cut"} · {matches ? "This is your saved draft" : "Your edits aren’t in this preview yet"}</span>;
 }
 
 export function ProgramMonitor({

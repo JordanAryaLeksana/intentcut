@@ -6,6 +6,7 @@ from fastapi import APIRouter, Response
 
 from intentcut.backend.ai_job_service import AIJobService
 from intentcut.backend.contracts import PUBLIC_JOB_ERROR_CODES
+from intentcut.backend.editing.workflow import Workflow
 from intentcut.backend.first_cut.contracts import FirstCutRequest
 from intentcut.backend.jobs.schemas import (
     AIJobAcceptedResponse,
@@ -54,11 +55,16 @@ def create_ai_job_router(service: AIJobService) -> APIRouter:
         return AIJobAcceptedResponse(id=job.id, status="queued", status_url=status_url)
 
     @router.get("", response_model=AIJobListResponse)
-    def list_jobs(project_id: UUID) -> AIJobListResponse:
+    def list_jobs(
+        project_id: UUID, workflow: Workflow | None = None
+    ) -> AIJobListResponse:
         # Recovery only: existing first-cut/highlight jobs, newest first.
         # This GET never creates, claims, or mutates a job.
         return AIJobListResponse(
-            items=[job_response(job) for job in service.list_recoverable(project_id)]
+            items=[
+                job_response(job)
+                for job in service.list_recoverable(project_id, workflow)
+            ]
         )
 
     @router.get("/{job_id}", response_model=AIJobResponse)

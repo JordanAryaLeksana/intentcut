@@ -1,5 +1,7 @@
 "use client";
 
+import { useEditingScope } from "./workflow";
+
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api/transport";
@@ -9,16 +11,18 @@ import { savedDraftKey } from "./use-editing";
 import { useSaveDraft } from "./use-save-draft";
 
 export function DraftSaveStatus({ projectId }: { projectId: string }) {
-  const draft = useDraftStore(s => s.byProject[projectId]);
-  const saved = useDraftStore(s => s.savedByProject[projectId]);
+  const { scope } = useEditingScope(projectId);
+  const draft = useDraftStore(s => s.byProject[scope]);
+  const saved = useDraftStore(s => s.savedByProject[scope]);
   const save = useSaveDraft(projectId);
   return <span className="studio-draftState" role="status">{save.pending ? "Saving…" : save.error ? "Save failed" : !draft ? "No draft yet" : draftMatchesSaved(draft, saved) ? `All changes saved · Version ${saved?.revision}` : "Unsaved changes"}</span>;
 }
 
 export function SaveDraftControl({ projectId, showStatus = false }: { projectId: string; showStatus?: boolean }) {
-  const draft = useDraftStore(s => s.byProject[projectId]);
-  const saved = useDraftStore(s => s.savedByProject[projectId]);
-  const restored = useDraftStore(s => s.restoredByProject[projectId]);
+  const { workflow, scope } = useEditingScope(projectId);
+  const draft = useDraftStore(s => s.byProject[scope]);
+  const saved = useDraftStore(s => s.savedByProject[scope]);
+  const restored = useDraftStore(s => s.restoredByProject[scope]);
   const save = useSaveDraft(projectId);
   const client = useQueryClient();
   const [reloading, setReloading] = useState(false);
@@ -29,16 +33,16 @@ export function SaveDraftControl({ projectId, showStatus = false }: { projectId:
     setReloading(true);
     setReloadError(false);
     try {
-      const result = await getSavedDraft(projectId);
-      useDraftStore.getState().restore(projectId, result, true);
-      client.setQueryData(savedDraftKey(projectId), result);
+      const result = await getSavedDraft(projectId, undefined, workflow);
+      useDraftStore.getState().restore(scope, result, true);
+      client.setQueryData(savedDraftKey(projectId, workflow), result);
       save.reset();
     } catch { setReloadError(true); }
     finally { setReloading(false); }
   }
   return <div className="studio-saveControl">
     {showStatus && <DraftSaveStatus projectId={projectId} />}
-    <button id="editing-draft-save" type="button" className="button button-primary" disabled={!draft || !restored || matches || save.pending || reloading}
+    <button id={(workflow === "first_cut" ? "editing-draft-save" : "editing-draft-save-highlights")} type="button" className="button button-primary" disabled={!draft || !restored || matches || save.pending || reloading}
       onClick={() => { void save.save().catch(() => {}); }}>{save.pending ? "Saving…" : save.error ? "Retry Save Changes" : "Save Changes"}</button>
     {Boolean(save.error) && <div className="studio-saveError" role="alert">
       <p>{save.error instanceof ApiError && save.error.status === 409 ? "A newer editing draft is saved. Your local edits are kept. Reload the saved draft before saving again." : "Save failed. Your local edits are kept. Retry Save Changes, or reload the saved draft."}</p>

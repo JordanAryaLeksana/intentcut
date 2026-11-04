@@ -1,5 +1,6 @@
 /** Identity-only edits: the backend resolves all ranges and media paths. */
-import { ApiError, isProjectId, isRecord, requestJSON, requireUUID } from "./transport";
+import { editingPath, type EditingWorkflow } from "./workflow";
+import { ApiError, isProjectId, isRecord, requestJSON } from "./transport";
 import { parsePublicStoryboard, type PublicStoryboard } from "@/features/studio/ai-director/storyboard/storyboard-schema";
 import type { AIJobStatus } from "./contracts";
 
@@ -12,7 +13,7 @@ export interface SavedDraft {
   storyboard: PublicStoryboard;
 }
 export interface RenderVersion { job_id: string; revision: number; status: AIJobStatus }
-const path = (projectId: string) => `/projects/${requireUUID(projectId, "project")}/edit-draft`;
+
 function invalid(): never { throw new ApiError("Invalid editing response.", 0, "invalid_response"); }
 export function parseSavedDraft(value: unknown): SavedDraft {
   if (!isRecord(value) || !Number.isSafeInteger(value.revision) || Number(value.revision) < 1 ||
@@ -28,16 +29,16 @@ export function parseSavedDraft(value: unknown): SavedDraft {
   return { revision: Number(value.revision), base_job_id: value.base_job_id, base_artifact_id: value.base_artifact_id,
     updated_at: value.updated_at, window_indices: value.window_indices, storyboard };
 }
-export async function getSavedDraft(projectId: string, signal?: AbortSignal): Promise<SavedDraft | null> {
-  const value = await requestJSON(path(projectId), { signal });
+export async function getSavedDraft(projectId: string, signal?: AbortSignal, workflow: EditingWorkflow = "first_cut"): Promise<SavedDraft | null> {
+  const value = await requestJSON(editingPath(projectId, "", workflow), { signal });
   if (!isRecord(value)) return invalid();
   return value.draft === null ? null : parseSavedDraft(value.draft);
 }
-export async function saveDraft(projectId: string, body: {expected_revision: number; base_job_id: string; base_artifact_id: string; window_indices: number[]}): Promise<SavedDraft> {
-  return parseSavedDraft(await requestJSON(path(projectId), {method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)}));
+export async function saveDraft(projectId: string, body: {expected_revision: number; base_job_id: string; base_artifact_id: string; window_indices: number[]}, workflow: EditingWorkflow = "first_cut"): Promise<SavedDraft> {
+  return parseSavedDraft(await requestJSON(editingPath(projectId, "", workflow), {method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)}));
 }
-export async function listRenderVersions(projectId: string, signal?: AbortSignal): Promise<RenderVersion[]> {
-  const value = await requestJSON(`${path(projectId)}/renders`, { signal });
+export async function listRenderVersions(projectId: string, signal?: AbortSignal, workflow: EditingWorkflow = "first_cut"): Promise<RenderVersion[]> {
+  const value = await requestJSON(editingPath(projectId, "/renders", workflow), { signal });
   if (!isRecord(value) || !Array.isArray(value.items)) return invalid();
   return value.items.map((item: unknown) => {
     if (!isRecord(item) || typeof item.job_id !== "string" || !isProjectId(item.job_id) ||
@@ -46,8 +47,8 @@ export async function listRenderVersions(projectId: string, signal?: AbortSignal
     return {job_id:item.job_id, revision:Number(item.revision), status:item.status as AIJobStatus};
   });
 }
-export async function renderDraft(projectId: string, revision: number): Promise<string> {
-  const value = await requestJSON(`${path(projectId)}/renders`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({revision})});
+export async function renderDraft(projectId: string, revision: number, workflow: EditingWorkflow = "first_cut"): Promise<string> {
+  const value = await requestJSON(editingPath(projectId, "/renders", workflow), {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({revision})});
   if (!isRecord(value) || typeof value.id !== "string" || !isProjectId(value.id)) return invalid();
   return value.id;
 }

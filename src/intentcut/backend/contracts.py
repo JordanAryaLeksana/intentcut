@@ -6,6 +6,7 @@ from pathlib import Path
 PUBLIC_JOB_ERROR_CODES = frozenset(
     {
         "processing_failed",
+        "no_relevant_highlights",
         "unsupported_job_type",
         "unsupported_revision",
         "draft_revision_changed",

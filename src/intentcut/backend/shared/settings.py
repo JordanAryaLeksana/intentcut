@@ -44,6 +44,7 @@ class BackendSettings(BaseSettings):
     ai_max_inference_requests: int = Field(default=31, ge=2, le=31)
     highlight_max_source_bytes: int = Field(default=512 * 1024 * 1024, gt=0)
     highlight_max_duration_seconds: float = Field(default=21600.0, gt=0)
+    highlight_max_jobs_per_project: int = Field(default=10, ge=1, le=100)
     highlight_max_probes: int = Field(default=96, ge=1, le=256)
     highlight_preview_seconds: float = Field(default=30.0, gt=0, le=120)
     max_upload_files: int = Field(default=10, ge=1, le=10)

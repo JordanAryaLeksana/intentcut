@@ -1,3 +1,4 @@
+import type { EditingWorkflow } from "./workflow";
 import type { AIJob, AIJobAccepted, FirstCutRequest } from "./contracts.ts";
 import {
   ApiError,
@@ -139,8 +140,9 @@ export async function getAIJob(
 export async function listAIJobs(
   projectId: string,
   signal?: AbortSignal,
+  workflow?: EditingWorkflow,
 ): Promise<AIJob[]> {
-  const value = await requestJSON(aiJobsPath(projectId), { signal });
+  const value = await requestJSON(`${aiJobsPath(projectId)}${workflow ? `?workflow=${workflow}` : ""}`, { signal });
   if (!isRecord(value) || !Array.isArray(value.items)) {
     throw new ApiError("Invalid AI job list response.", 0, "invalid_response");
   }

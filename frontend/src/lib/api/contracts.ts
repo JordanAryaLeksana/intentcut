@@ -58,6 +58,8 @@ export type AIJobStatus = "queued" | "running" | "succeeded" | "failed";
 
 export type AIProgressStage =
   | "generating_image" | "validating_image"
+  | "discovering_highlights"
+  | "refining_highlights"
   | "preparing_media"
   | "extracting_audio" | "transcribing_audio" | "validating_transcript" | "extracting_windows"
   | "understanding_footage"

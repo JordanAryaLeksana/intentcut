@@ -9,7 +9,15 @@ export interface PublicStoryboardCut {
   end_seconds: number;
 }
 
+export interface HighlightDiscovery {
+  coarse_samples: number;
+  fine_samples: number;
+  source_duration_seconds: number;
+  max_coarse_gap_seconds: number;
+  candidates: { id: string; media_id: string; start_seconds: number; end_seconds: number; score: number }[];
+}
 export interface PublicStoryboard {
+  highlight_discovery?: HighlightDiscovery;
   target_seconds: number;
   total_seconds: number;
   render_seconds?: number;
@@ -199,7 +207,21 @@ export function parsePublicStoryboard(
     throw new Error("Invalid render duration.");
   }
 
+  const discovery = value.highlight_discovery;
+  if (discovery != null && (!isRecord(discovery) ||
+      !isIndex(discovery.coarse_samples) || discovery.coarse_samples < 1 || discovery.coarse_samples > 48 ||
+      !isIndex(discovery.fine_samples) || discovery.fine_samples > 24 ||
+      !isFiniteNumber(discovery.source_duration_seconds) || discovery.source_duration_seconds <= 0 ||
+      !isFiniteNumber(discovery.max_coarse_gap_seconds) || discovery.max_coarse_gap_seconds < 0 ||
+      !Array.isArray(discovery.candidates) || discovery.candidates.length > 12 ||
+      discovery.candidates.some(c => !isRecord(c) || typeof c.id !== "string" || !/^hl-\d{2}$/.test(c.id) ||
+        typeof c.media_id !== "string" || !UUID_PATTERN.test(c.media_id) ||
+        !isFiniteNumber(c.start_seconds) || !isFiniteNumber(c.end_seconds) || c.start_seconds < 0 || c.end_seconds <= c.start_seconds ||
+        c.end_seconds > Number(discovery.source_duration_seconds) || !isFiniteNumber(c.score) || c.score < 0 || c.score > 1))) {
+    throw new Error("Invalid highlight discovery report.");
+  }
   return {
+    ...(discovery ? { highlight_discovery: discovery as unknown as HighlightDiscovery } : {}),
     target_seconds,
     total_seconds,
     cuts,

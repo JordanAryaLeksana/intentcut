@@ -149,3 +149,8 @@ class MuseClient:
         from intentcut.ai.revision import request_revision
 
         return request_revision(self.client, context, instruction)
+
+    def rank_highlights(self, samples, intent):
+        from intentcut.ai.highlight_retrieval import request_sample_ranking
+
+        return request_sample_ranking(self.client, samples, intent)

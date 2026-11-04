@@ -1,5 +1,7 @@
 "use client";
 
+import { useEditingScope } from "./workflow";
+
 import { useEffect, useRef } from "react";
 import { ApiError } from "@/lib/api/transport";
 import { useCaptionStore } from "./captions/store";
@@ -40,13 +42,14 @@ function ManualRenderStatus({
   revision: number;
   listedStatus: string;
 }) {
+  const { workflow } = useEditingScope(projectId);
   const job = useAIJobStatus(projectId, jobId);
   const client = useQueryClient();
   useEffect(() => {
     if (job.data && job.data.status !== listedStatus) {
-      void client.invalidateQueries({ queryKey: renderVersionsKey(projectId) });
+      void client.invalidateQueries({ queryKey: renderVersionsKey(projectId, workflow) });
     }
-  }, [client, projectId, job.data, listedStatus]);
+  }, [workflow, client, projectId, job.data, listedStatus]);
   if (job.isError)
     return (
       <p role="alert">
@@ -88,9 +91,10 @@ export function DraftPersistence({
   projectId: string;
   draft: TimelineDraft;
 }) {
+  const { workflow, scope } = useEditingScope(projectId);
   const client = useQueryClient();
   const renderLock = useRef(false);
-  const saved = useDraftStore((state) => state.savedByProject[projectId]);
+  const saved = useDraftStore((state) => state.savedByProject[scope]);
   const { setPreview } = useDraftStore();
   const versions = useRenderVersions(projectId);
   const matches = draftMatchesSaved(draft, saved);
@@ -102,17 +106,17 @@ export function DraftPersistence({
       if (!saved || !matches)
         throw new Error("Save this draft before making your video.");
       const revision = saved.revision;
-      await client.cancelQueries({ queryKey: renderVersionsKey(projectId) });
-      return { jobId: await renderDraft(projectId, revision), revision };
+      await client.cancelQueries({ queryKey: renderVersionsKey(projectId, workflow) });
+      return { jobId: await renderDraft(projectId, revision, workflow), revision };
     },
     retry: false,
     onSuccess: async ({ jobId, revision }) => {
-      client.setQueryData<import("@/lib/api/editing").RenderVersion[]>(renderVersionsKey(projectId), previous =>
+      client.setQueryData<import("@/lib/api/editing").RenderVersion[]>(renderVersionsKey(projectId, workflow), previous =>
         previous?.some(v => v.job_id === jobId) ? previous : [{ job_id: jobId, revision, status: "queued" }, ...(previous ?? [])]);
-      useCaptionStore.getState().preview(projectId);
-      setPreview(projectId, jobId);
+      useCaptionStore.getState().preview(scope);
+      setPreview(scope, jobId);
       void client.invalidateQueries({ queryKey: aiJobKey(projectId, jobId) });
-      await client.invalidateQueries({ queryKey: renderVersionsKey(projectId) });
+      await client.invalidateQueries({ queryKey: renderVersionsKey(projectId, workflow) });
     },
     onSettled: () => { renderLock.current = false; },
   });
@@ -130,19 +134,19 @@ export function DraftPersistence({
       <div className="studio-draftActions">
         {!matches && (
           <a
-            href="#editing-draft-save"
+            href={(workflow === "first_cut" ? "#editing-draft-save" : "#editing-draft-save-highlights")}
             className="studio-toolbarLink"
             onClick={(event) => {
               event.preventDefault();
-              useDraftStore.getState().setDockTab(projectId, "director");
+              useDraftStore.getState().setDockTab(scope, workflow === "highlights" ? "highlights" : "director");
               requestAnimationFrame(() => {
-                const target = document.getElementById("editing-draft-save");
+                const target = document.getElementById((workflow === "first_cut" ? "editing-draft-save" : "editing-draft-save-highlights"));
                 target?.scrollIntoView({ block: "center" });
                 target?.focus({ preventScroll: true });
               });
             }}
           >
-            Save your draft in AI Director → Rework your story
+            Save your draft in Rework your story
           </a>
         )}
         <button
@@ -198,8 +202,9 @@ export function DraftPersistence({
 }
 
 export function RenderVersionPicker({ projectId }: { projectId: string }) {
+  const { workflow, scope } = useEditingScope(projectId);
   const { manual, versions } = usePreviewJob(projectId);
-  const captioned = useCaptionStore((state) => state.previews[projectId]);
+  const captioned = useCaptionStore((state) => state.previews[scope]);
   const clearCaptioned = useCaptionStore((state) => state.preview);
   const setPreview = useDraftStore((state) => state.setPreview);
   return (
@@ -213,8 +218,8 @@ export function RenderVersionPicker({ projectId }: { projectId: string }) {
         }
         onChange={(event) => {
           if (event.target.value.startsWith("captioned:")) return;
-          clearCaptioned(projectId);
-          setPreview(projectId, event.target.value || null);
+          clearCaptioned(scope);
+          setPreview(scope, event.target.value || null);
         }}
       >
         {captioned && (
@@ -222,7 +227,7 @@ export function RenderVersionPicker({ projectId }: { projectId: string }) {
             {captioned.label}
           </option>
         )}
-        <option value="">Your first cut</option>
+        <option value="">{workflow === "highlights" ? "Your highlights" : "Your first cut"}</option>
         {versions.data?.map((v) => (
           <option key={v.job_id} value={v.job_id}>
             Version {v.revision} ·{" "}

@@ -267,3 +267,14 @@
 @media (max-width: 899px) {
   .processing-jump, .processing-instruction summary { min-height: 44px; }
 }
+
+/* Workflow ownership stays visible while the shared editor follows the selection. */
+.studio-workflowSwitch { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 5px; }
+.studio-workflowSwitch button { min-height: 36px; padding: 6px 12px; font-size: 12px; color: var(--muted-foreground); cursor: pointer; border-radius: 3px; }
+.studio-workflowSwitch button[aria-pressed='true'] { background: color-mix(in srgb, var(--primary) 12%, var(--surface)); color: var(--primary); }
+.studio-workflowSwitch button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.highlight-navigator .highlight-section > input, .highlight-navigator .highlight-section > select { max-width: 100%; width: 100%; }
+.highlight-navigator .highlight-section > label { margin-top: 12px; }
+.highlight-navigator .highlight-section > .button { margin-top: 12px; }
+.highlight-navigator .highlight-listButton { min-height: 44px; width: 100%; text-align: left; }
+@media (max-width: 899px) { .studio-workflowSwitch button { min-height: 44px; } }

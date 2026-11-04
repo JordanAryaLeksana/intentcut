@@ -1,5 +1,6 @@
 "use client";
 
+import { useEditingScope } from "../workflow";
 import { Fragment, useEffect, useRef, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useRenderVersions } from "../use-editing";
@@ -15,8 +16,11 @@ export { activityRenderLabel } from "./processing-lifecycle";
 export function DirectorProcessingStatus({ projectId, firstCutJobId, children }: {
   projectId: string; firstCutJobId: string | null; children?: ReactNode;
 }) {
+  const { workflow } = useEditingScope(projectId);
+  const firstLabel = workflow === "highlights" ? "AI Highlights" : "First Cut";
+  const headingId = workflow === "first_cut" ? "processing-heading" : "processing-heading-highlights";
   const versions = useRenderVersions(projectId);
-  const proposals = useQuery(proposalOptions(projectId));
+  const proposals = useQuery(proposalOptions(projectId, workflow));
   const firstCut = useAIJobStatus(projectId, firstCutJobId);
   const renders = [...new Map((versions.data ?? []).map(v => [v.job_id, v])).values()];
   // Keep the existing single active render detail poll. Historical details are
@@ -44,9 +48,9 @@ export function DirectorProcessingStatus({ projectId, firstCutJobId, children }:
   const errors = new Set(renders.filter((_, index) => renderJobs[index].isError).map(v => v.job_id));
   const unconfirmed = versions.isError || proposals.isError || (current && errors.has(current.id));
 
-  return <section aria-labelledby="processing-heading" className="processing-lifecycle mb-6">
+  return <section aria-labelledby={headingId} className="processing-lifecycle mb-6">
     <div className="processing-lifecycleHeading">
-      <h3 id="processing-heading">Video Activity</h3>
+      <h3 id={headingId}>Video Activity</h3>
       {!firstOnly && <button type="button" className="processing-jump" onClick={() => {
         const region = scrollRegion.current;
         if (region) { region.scrollTop = region.scrollHeight; region.focus(); followLatest.current = true; }
@@ -61,16 +65,16 @@ export function DirectorProcessingStatus({ projectId, firstCutJobId, children }:
       </div>}
       {versions.isPending && <p role="status">Loading video activity…</p>}
       {proposals.isPending && <p role="status">Loading revision history…</p>}
-      {firstCutJobId && firstCut.isPending && <p role="status">Checking on your first cut…</p>}
+      {firstCutJobId && firstCut.isPending && <p role="status">Checking on {firstLabel}…</p>}
       {versions.isError && <p className="processing-queryError" role="alert">Video activity could not be refreshed. Displayed status is last confirmed. <button type="button" onClick={() => void versions.refetch()}>Check video activity</button></p>}
       {proposals.isError && <p className="processing-queryError" role="alert">Revision history could not be refreshed. <button type="button" onClick={() => void proposals.refetch()}>Check revision history</button></p>}
-      {firstCutJobId && firstCut.isError && <p className="processing-queryError" role="alert">First Cut details could not be refreshed. <button type="button" onClick={() => void firstCut.refetch()}>Check First Cut</button></p>}
+      {firstCutJobId && firstCut.isError && <p className="processing-queryError" role="alert">{firstLabel} details could not be refreshed. <button type="button" onClick={() => void firstCut.refetch()}>Check {firstLabel}</button></p>}
       {(firstCut.data || phases.length > 0) && <div className="processing-history" ref={scrollRegion} tabIndex={0} role="region" aria-label="Project processing timeline" onScroll={event => {
         const region = event.currentTarget;
         followLatest.current = region.scrollHeight - region.scrollTop - region.clientHeight < 32;
       }}>
         <ol className="processing-milestones" aria-label="How your video is coming along">
-          {firstCut.data && <FirstCutMilestones job={firstCut.data} unconfirmed={firstCut.isError} label="First Cut" />}
+          {firstCut.data && <FirstCutMilestones job={firstCut.data} unconfirmed={firstCut.isError} label={firstLabel} />}
           {phases.map(phase => {
             const stale = (renders.some(v => v.job_id === phase.id) ? versions.isError : proposals.isError) || errors.has(phase.id);
             return <Fragment key={phase.id}>
@@ -97,12 +101,12 @@ export function DirectorProcessingStatus({ projectId, firstCutJobId, children }:
       </>}
       {firstCut.data?.status === "succeeded" && !firstCut.isError && <>
         {firstOnly && <a className="button button-primary processing-viewCut" href="#monitor-heading">Watch your video</a>}
-        <details className="processing-jobId"><summary>First Cut files &amp; details</summary>
+        <details className="processing-jobId"><summary>{firstLabel} files &amp; details</summary>
           <p className="technical">{firstCutJobId}</p>
           <JobArtifacts projectId={projectId} jobId={firstCut.data.id} />
         </details>
       </>}
-      {!firstCutJobId && firstOnly && versions.isSuccess && proposals.isSuccess && <p className="processing-empty">Your processing timeline will appear here when you create a First Cut.</p>}
+      {!firstCutJobId && firstOnly && versions.isSuccess && proposals.isSuccess && <p className="processing-empty">Your processing timeline will appear here when you create {workflow === "highlights" ? "AI Highlights" : "a First Cut"}.</p>}
     </div>
   </section>;
 }

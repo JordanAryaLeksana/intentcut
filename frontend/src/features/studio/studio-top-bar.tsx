@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { WorkflowSwitcher } from "./workflow";
 import { useQuery } from "@tanstack/react-query";
 import { getProject } from "@/lib/api/projects";
 import { TAKE_TOUR_EVENT } from "./studio-tour-logic";
@@ -43,6 +44,7 @@ export function StudioTopBar({ projectId }: { projectId?: string }) {
         {projectId ? <ProjectTitle projectId={projectId} /> : <h1>Studio preview</h1>}
         <span className="studio-badge">{projectId ? "Project workspace" : "Preview only"}</span>
       </div>
+      {projectId && <WorkflowSwitcher projectId={projectId} />}
       <div className="studio-toolbarState">
         {projectId ? <JobState key={projectId} projectId={projectId} /> : <span>Open a project to begin</span>}
         {projectId ? <DraftSaveStatus projectId={projectId} /> : <span className="studio-draftState">Open a project to save a draft</span>}

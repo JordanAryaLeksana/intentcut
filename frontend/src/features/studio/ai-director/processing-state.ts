@@ -6,6 +6,8 @@ export interface ObservedJob extends AIJob {
 }
 
 export const STAGE_COPY: Record<AIProgressStage, { title: string; description: string }> = {
+  discovering_highlights: { title: "Finding moments for your prompt", description: "Sampling frames across your source video." },
+  refining_highlights: { title: "Looking closer at promising moments", description: "Comparing more frames around the strongest matches." },
   generating_image: { title: "Creating your image", description: "Creating an image from your idea." },
   validating_image: { title: "Checking your image", description: "Making sure your image looks right." },
   preparing_media: { title: "Getting your footage ready", description: "Checking the footage you chose." },
@@ -50,6 +52,7 @@ export function formatElapsed(seconds: number | null): string {
 
 export function failureDescription(code: string | null): string {
   switch (code) {
+    case "no_relevant_highlights": return "No sampled moments matched your prompt clearly enough. Try a more visible event or a narrower source. Brief events between samples may be missed.";
     case "caption_render_unsupported": return "We couldn’t add subtitles to this video. Try a different video format.";
     case "invalid_transcript": return "We couldn’t read the speech clearly enough to continue. Nothing new was started.";
     case "transcription_outcome_unknown": return "We’re not sure whether the captions finished. We didn’t start again, so you won’t be charged twice.";

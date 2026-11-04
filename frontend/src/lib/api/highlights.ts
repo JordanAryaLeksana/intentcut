@@ -25,6 +25,7 @@ export interface HighlightCandidateList {
 }
 
 export interface HighlightJobRequest {
+  request_id?: string;
   kind: "highlight";
   intent: string;
   target_seconds: number;
@@ -147,6 +148,7 @@ function validateHighlightJob(payload: HighlightJobRequest): HighlightJobRequest
     throw new ApiError("Your moment picks look off. Pick again.", 0, "invalid_candidates");
   }
   return {
+    ...(payload.request_id ? { request_id: requireUUID(payload.request_id, "request") } : {}),
     kind: "highlight",
     intent,
     target_seconds: payload.target_seconds,

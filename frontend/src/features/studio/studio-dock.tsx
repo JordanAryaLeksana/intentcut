@@ -1,5 +1,7 @@
 "use client";
 
+import { useEditingScope, WorkflowBoundary, selectWorkflow } from "./workflow";
+import { workflowScope } from "@/lib/api/workflow";
 import { useRef, useState } from "react";
 import { CaptionsPanel } from "./captions/captions-panel";
 import { VisualsPanel } from "./visuals/visuals-panel";
@@ -64,7 +66,8 @@ function SourceInspector({ projectId }: { projectId: string }) {
 }
 
 function CutInspector({ projectId }: { projectId: string }) {
-  const draft = useDraftStore((state) => state.byProject[projectId]);
+  const { scope } = useEditingScope(projectId);
+  const draft = useDraftStore((state) => state.byProject[scope]);
   const media = useProjectMedia(projectId);
   const index = draft?.cuts.findIndex((cut) => cut.id === draft.selectedId) ?? -1;
   const cut = draft?.cuts[index];
@@ -85,11 +88,17 @@ function CutInspector({ projectId }: { projectId: string }) {
 }
 
 export function StudioDock({ projectId }: { projectId?: string }) {
+  const { scope, workflow } = useEditingScope(projectId ?? "");
   const [previewTab, setPreviewTab] = useState<DockTab>("director");
-  const projectTab = useDraftStore((state) => projectId ? state.dockTabByProject[projectId] : undefined);
+  const projectTab = useDraftStore((state) => projectId ? state.dockTabByProject[scope] : undefined);
   const setDockTab = useDraftStore((state) => state.setDockTab);
-  const active = projectId ? projectTab ?? "director" : previewTab;
-  const setActive = (tab: DockTab) => projectId ? setDockTab(projectId, tab) : setPreviewTab(tab);
+  const active = projectId ? projectTab ?? (workflow === "highlights" ? "highlights" : "director") : previewTab;
+  const setActive = (tab: DockTab) => {
+    if (!projectId) { setPreviewTab(tab); return; }
+    const nextWorkflow = tab === "highlights" ? "highlights" : tab === "director" ? "first_cut" : workflow;
+    selectWorkflow(projectId, nextWorkflow);
+    setDockTab(workflowScope(projectId, nextWorkflow), tab);
+  };
   const buttons = useRef<Partial<Record<DockTab, HTMLButtonElement | null>>>({});
 
   return (
@@ -114,14 +123,14 @@ export function StudioDock({ projectId }: { projectId?: string }) {
               buttons.current[next]?.focus();
             }}
           >
-            {tab === "director" ? "AI Director" : tab === "inspector" ? "Details" : tab === "captions" ? "Captions" : tab === "visuals" ? "AI Visuals" : "Highlights"}
+            {tab === "director" ? "AI First Cut" : tab === "inspector" ? "Details" : tab === "captions" ? "Captions" : tab === "visuals" ? "AI Visuals" : "Highlights"}
           </button>
         ))}
       </div>
       {/* Keep all panels mounted: tab changes must not cancel uploads, lose a
           creative brief, restart recovery, or reset a storyboard viewer. */}
       <div className="studio-dockPanel" id="dock-panel-director" role="tabpanel" aria-labelledby="dock-tab-director" tabIndex={0} hidden={active !== "director"}>
-        <AIDirector projectId={projectId} />
+        <WorkflowBoundary workflow="first_cut"><AIDirector projectId={projectId} /></WorkflowBoundary>
       </div>
       <div className="studio-dockPanel studio-inspector" id="dock-panel-inspector" role="tabpanel" aria-labelledby="dock-tab-inspector" tabIndex={0} hidden={active !== "inspector"}>
         <header className="studio-panelHeader"><h2>Details</h2><span>About this moment</span></header>
@@ -134,7 +143,7 @@ export function StudioDock({ projectId }: { projectId?: string }) {
       </div>
       <div className="studio-dockPanel" id="dock-panel-visuals" role="tabpanel" aria-labelledby="dock-tab-visuals" tabIndex={0} hidden={active!=="visuals"}><VisualsPanel projectId={projectId}/></div>
       <div className="studio-dockPanel" id="dock-panel-highlights" role="tabpanel" aria-labelledby="dock-tab-highlights" tabIndex={0} hidden={active !== "highlights"}>
-        <HighlightNavigator projectId={projectId} />
+        <WorkflowBoundary workflow="highlights"><HighlightNavigator projectId={projectId} /></WorkflowBoundary>
       </div>
     </aside>
   );

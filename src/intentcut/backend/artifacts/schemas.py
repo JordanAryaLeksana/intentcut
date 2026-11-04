@@ -66,8 +66,27 @@ class RenderManifest(BaseModel):
         return self
 
 
+class HighlightMoment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(pattern=r"^hl-\d{2}$")
+    media_id: UUID
+    start_seconds: float = Field(ge=0, allow_inf_nan=False)
+    end_seconds: float = Field(gt=0, allow_inf_nan=False)
+    score: float = Field(ge=0, le=1, allow_inf_nan=False)
+
+
+class HighlightDiscovery(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    coarse_samples: int = Field(ge=1, le=48)
+    fine_samples: int = Field(ge=0, le=24)
+    source_duration_seconds: float = Field(gt=0, allow_inf_nan=False)
+    max_coarse_gap_seconds: float = Field(ge=0, allow_inf_nan=False)
+    candidates: list[HighlightMoment] = Field(max_length=12)
+
+
 class PublicStoryboard(BaseModel):
     model_config = ConfigDict(extra="ignore", strict=True)
+    highlight_discovery: HighlightDiscovery | None = None
     target_seconds: float = Field(gt=0, le=120, allow_inf_nan=False)
     total_seconds: float = Field(gt=0, allow_inf_nan=False)
     render_manifest: RenderManifest | None = None
