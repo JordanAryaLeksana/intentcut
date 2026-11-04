@@ -10,7 +10,7 @@ export function jobPollingInterval(status?: string, error?: unknown): number | f
   if (status && status !== "queued" && status !== "running") return false;
   if (error) {
     const transient = error instanceof ApiError && (error.status >= 500 || error.code === "network_error");
-    if (!transient || !status) return false;
+    if (!transient) return false;
   }
   return 2_000;
 }

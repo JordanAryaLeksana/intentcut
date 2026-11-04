@@ -20,6 +20,8 @@ def job_response(job: AIJob) -> AIJobResponse:
     code = job.error_code
     if code is not None and code not in PUBLIC_JOB_ERROR_CODES:
         code = "processing_failed"
+    pipeline = (job.request_payload or {}).get("pipeline_version")
+    public_pipeline = pipeline if pipeline in ("uploaded_v1", "highlight_v1") else None
     return AIJobResponse(
         id=job.id,
         status=job.status,
@@ -30,6 +32,7 @@ def job_response(job: AIJob) -> AIJobResponse:
         attempt_count=job.attempt_count,
         error_code=code,
         progress=job.progress if job.has_active_lease is True else None,
+        pipeline_version=public_pipeline,
     )
 
 

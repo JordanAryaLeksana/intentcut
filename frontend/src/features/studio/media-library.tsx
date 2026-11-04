@@ -41,7 +41,7 @@ export function MediaLibrary({ projectId }: { projectId?: string }) {
           <p>Drop video files here or browse your device.</p>
           <input ref={input} disabled={busy} type="file" accept={ACCEPT_VIDEO} multiple hidden aria-label="Choose local videos" onChange={event => { const files = Array.from(event.currentTarget.files ?? []); if (files.length) dispatch({ type: "add", files }); event.currentTarget.value = ""; }} />
           <button ref={chooseButton} disabled={busy} type="button" className="button button-primary media-choose" aria-describedby="media-limits media-privacy" onClick={() => input.current?.click()}>Choose videos</button>
-          <p id="media-limits" className="media-limits">MP4, WebM, MOV, M4V<br />Up to 20 files · 2 GiB each</p>
+          <p id="media-limits" className="media-limits">MP4, WebM, MOV, M4V<br />Up to 10 files · 10 GiB each</p>
         </div>
         <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">{state.announcement}</div>
         <div role="alert" aria-atomic="true">

@@ -1,7 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
+import { isProjectId } from "@/lib/api/transport";
 import { queryOptions, useQuery } from "@tanstack/react-query";
-import { getSavedDraft, listRenderVersions } from "@/lib/api/editing";
+import { aiJobKey } from "./ai-director/hooks/use-ai-job-status";
+import { aiArtifactsKey } from "./ai-director/hooks/use-ai-artifacts";
+import { getSavedDraft, listRenderVersions, type RenderVersion } from "@/lib/api/editing";
 import { useDraftStore } from "./store/use-draft-store";
 import { useActiveJobId } from "./store/use-editor-store";
 
@@ -12,16 +16,36 @@ export const savedDraftOptions = (projectId: string) => queryOptions({
   retry: false, staleTime: Infinity, refetchOnWindowFocus: false,
 });
 export const renderVersionsOptions = (projectId: string) => queryOptions({
-  queryKey: renderVersionsKey(projectId), queryFn: ({ signal }) => listRenderVersions(projectId, signal),
+  queryKey: renderVersionsKey(projectId), queryFn: async ({ signal, client }) => {
+    const previous = client.getQueryData<RenderVersion[]>(renderVersionsKey(projectId));
+    const next = await listRenderVersions(projectId, signal);
+    for (const version of next) {
+      const before = previous?.find(v => v.job_id === version.job_id);
+      if (before && before.status !== version.status) {
+        void client.invalidateQueries({ queryKey: aiJobKey(projectId, version.job_id), exact: true });
+        if (version.status === "succeeded") void client.invalidateQueries({ queryKey: aiArtifactsKey(projectId, version.job_id) });
+      }
+    }
+    return next;
+  },
   retry: false, refetchOnWindowFocus: true,
-  refetchInterval: (query) => query.state.error ? false : query.state.data?.some(v => v.status === "queued" || v.status === "running") ? 2000 : false,
+  refetchInterval: (query) => query.state.data?.some(v => v.status === "queued" || v.status === "running") ? 2000 : false,
 });
 export function useRenderVersions(projectId: string) { return useQuery(renderVersionsOptions(projectId)); }
 export function usePreviewJob(projectId: string) {
   const versions = useRenderVersions(projectId);
   const selected = useDraftStore(state => state.previewByProject[projectId]);
+  useEffect(() => {
+    if (useDraftStore.getState().previewByProject[projectId] !== undefined) return;
+    try {
+      const raw = sessionStorage.getItem(`intentcut:preview:${projectId}`);
+      if (raw === null) return;
+      const value: unknown = JSON.parse(raw);
+      if (value === null || (typeof value === "string" && isProjectId(value))) useDraftStore.getState().setPreview(projectId, value);
+    } catch { /* Optional session persistence. */ }
+  }, [projectId]);
   const original = useActiveJobId(projectId);
   const saved = useDraftStore(state => state.savedByProject[projectId]);
-  const manual = selected === undefined ? versions.data?.find(v => v.status === "succeeded")?.job_id : selected;
+  const manual = selected === undefined ? (versions.data?.find(v => v.status === "queued" || v.status === "running") ?? versions.data?.find(v => v.status === "succeeded"))?.job_id : selected;
   return { jobId: manual ?? original ?? saved?.base_job_id ?? null, manual: manual ? versions.data?.find(v => v.job_id === manual) : undefined, versions };
 }

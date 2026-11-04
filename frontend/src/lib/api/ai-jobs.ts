@@ -19,7 +19,11 @@ function validateFirstCut(payload: FirstCutRequest): FirstCutRequest {
   }
   const intent = payload.intent.trim();
   if ([...intent].length < 1 || [...intent].length > 1000) {
-    throw new ApiError("Your story idea needs 1–1000 characters.", 0, "invalid_intent");
+    throw new ApiError(
+      "Your story idea needs 1–1000 characters.",
+      0,
+      "invalid_intent",
+    );
   }
   if (
     !Number.isFinite(payload.target_seconds) ||
@@ -91,12 +95,29 @@ function parseAIJob(value: unknown, expectedId?: string): AIJob {
     !isTimestamp(value.updated_at) ||
     !(value.started_at === null || isTimestamp(value.started_at)) ||
     !(value.finished_at === null || isTimestamp(value.finished_at)) ||
-    (typeof value.attempt_count !== "number" || !Number.isSafeInteger(value.attempt_count)) ||
+    typeof value.attempt_count !== "number" ||
+    !Number.isSafeInteger(value.attempt_count) ||
     Number(value.attempt_count) < 0 ||
     !(value.error_code === null || typeof value.error_code === "string")
   ) {
-    throw new ApiError("Invalid AI job status response.", 0, "invalid_response");
+    throw new ApiError(
+      "Invalid AI job status response.",
+      0,
+      "invalid_response",
+    );
   }
+  if (
+    value.pipeline_version !== undefined &&
+    value.pipeline_version !== null &&
+    value.pipeline_version !== "uploaded_v1" &&
+    value.pipeline_version !== "highlight_v1"
+  ) {
+    throw new ApiError(
+      "Invalid AI job pipeline.",
+      0,
+      "invalid_response",
+    );
+}
   const progress = parseJobProgress(value.progress);
   return {
     ...(value as unknown as AIJob),

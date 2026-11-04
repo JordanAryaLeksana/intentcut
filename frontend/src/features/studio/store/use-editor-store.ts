@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-export const MAX_AI_MEDIA_SELECTION = 4;
+export const MAX_AI_MEDIA_SELECTION = 10;
 
 interface EditorState {
   selectedMediaByProject: Record<string, string[]>;

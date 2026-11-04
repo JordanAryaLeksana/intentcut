@@ -25,7 +25,7 @@ export function parseJobProgress(value: unknown): AIJobProgress | null {
   if (hasCounts && (
     value.stage !== "understanding_footage" ||
     typeof completed !== "number" || !Number.isSafeInteger(completed) || completed < 0 ||
-    typeof total !== "number" || !Number.isSafeInteger(total) || total < 1 || total > 12 ||
+    typeof total !== "number" || !Number.isSafeInteger(total) || total < 1 || total > 30 ||
     completed > total
   )) {
     throw new ApiError("Invalid AI window counts.", 0, "invalid_response");

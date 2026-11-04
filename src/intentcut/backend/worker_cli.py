@@ -93,7 +93,7 @@ def run_worker(
                     database=database,
                     storage=storage,
                     settings=settings,
-                    muse=MuseClient(client),
+                    muse=MuseClient(client, story_max_output_tokens=settings.ai_story_max_output_tokens),
                 )
             )
             manual_processor = ManualRenderProcessor(database, storage, settings)
@@ -102,7 +102,7 @@ def run_worker(
                 if manual_only or voice_only or captions_only or image_only
                 else RevisionProcessor(
                     EditingService(AIJobService(database, storage, settings)),
-                    MuseClient(client),
+                    MuseClient(client, story_max_output_tokens=settings.ai_story_max_output_tokens),
                 )
             )
 

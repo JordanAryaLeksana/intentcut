@@ -117,8 +117,17 @@ def analyze_one(
 class MuseClient:
     """Thin reusable facade; caller owns and closes the configured OpenAI client."""
 
-    def __init__(self, client: OpenAI) -> None:
+    def __init__(
+        self,
+        client: OpenAI,
+        *,
+        story_max_output_tokens: int = 4000,
+    ) -> None:
+        if not 500 <= story_max_output_tokens <= 16000:
+            raise ValueError("Invalid story max output tokens")
+
         self.client = client
+        self.story_max_output_tokens = story_max_output_tokens
 
     def analyze(self, clip: Path) -> VideoUnderstandingResult:
         result, _ = analyze_one(self.client, clip)
@@ -127,7 +136,13 @@ class MuseClient:
     def select(self, evidence: list[dict], intent: str, target_seconds: float):
         from intentcut.ai.story_director import request_story
 
-        selection, _ = request_story(self.client, evidence, intent, target_seconds)
+        selection, _ = request_story(
+            self.client,
+            evidence,
+            intent,
+            target_seconds,
+            max_output_tokens=self.story_max_output_tokens,
+        )
         return selection
 
     def revise(self, context: dict, instruction: str):

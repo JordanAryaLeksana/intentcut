@@ -43,7 +43,7 @@ class AIJobProgress(BaseModel):
     stage_started_at: datetime
     updated_at: datetime
     completed_windows: int | None = Field(default=None, ge=0, strict=True)
-    total_windows: int | None = Field(default=None, ge=1, le=12, strict=True)
+    total_windows: int | None = Field(default=None, ge=1, le=30, strict=True)
 
     @model_validator(mode="after")
     def valid_counts_and_times(self) -> "AIJobProgress":

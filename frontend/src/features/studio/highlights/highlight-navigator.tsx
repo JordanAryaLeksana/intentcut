@@ -11,11 +11,18 @@ import {
 } from "@/lib/api/highlights";
 import { useProjectMedia } from "../media/hooks/use-project-media";
 import { useAIJobStatus } from "../ai-director/hooks/use-ai-job-status";
-import { aiArtifactsKey, useAIArtifacts } from "../ai-director/hooks/use-ai-artifacts";
+import {
+  aiArtifactsKey,
+  useAIArtifacts,
+} from "../ai-director/hooks/use-ai-artifacts";
 import { usePublicStoryboard } from "../ai-director/hooks/use-public-storyboard";
 import { useActiveJobId, useEditorStore } from "../store/use-editor-store";
 import { writeSavedJobId } from "../store/job-recovery";
-import { formatTimestamp, markerPercent, matchStoryboardCut } from "./highlight-format";
+import {
+  formatTimestamp,
+  markerPercent,
+  matchStoryboardCut,
+} from "./highlight-format";
 import "./highlights.css";
 
 const AUTO_INTENT =
@@ -33,7 +40,9 @@ function statusMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 422) {
     return "This video is too long for highlight search. Try a shorter video.";
   }
-  return error instanceof Error ? error.message : "We couldn’t confirm that. Check again before trying once more.";
+  return error instanceof Error
+    ? error.message
+    : "We couldn’t confirm that. Check again before trying once more.";
 }
 
 function momentLabel(candidates: HighlightCandidate[], id: string): string {
@@ -64,13 +73,24 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
     () => (media.data ?? []).filter((item) => item.duration_seconds > 0),
     [media.data],
   );
-  const source = sources.find((item) => item.id === mediaId) ?? sources[0] ?? null;
+  const source =
+    sources.find((item) => item.id === mediaId) ?? sources[0] ?? null;
   const effectiveMediaId = source?.id ?? null;
 
   const candidatesQuery = useQuery({
-    queryKey: ["projects", projectId, "highlight-candidates", effectiveMediaId] as const,
+    queryKey: [
+      "projects",
+      projectId,
+      "highlight-candidates",
+      effectiveMediaId,
+    ] as const,
     queryFn: ({ signal }) =>
-      listHighlightCandidates(projectId as string, effectiveMediaId as string, {}, signal),
+      listHighlightCandidates(
+        projectId as string,
+        effectiveMediaId as string,
+        {},
+        signal,
+      ),
     enabled: Boolean(projectId && effectiveMediaId),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
@@ -82,7 +102,9 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
   if (prevCandidates !== candidates) {
     setPrevCandidates(candidates);
     setInspectedId((current) =>
-      current && candidates.some((c) => c.id === current) ? current : (candidates[0]?.id ?? null),
+      current && candidates.some((c) => c.id === current)
+        ? current
+        : (candidates[0]?.id ?? null),
     );
     setIncluded((current) =>
       current === null
@@ -93,14 +115,97 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
 
   const inspected = candidates.find((c) => c.id === inspectedId) ?? null;
   const includedIds = included ?? [];
+  const previewRequestUrl =
+    projectId && inspected
+      ? highlightPreviewUrl(
+          projectId,
+          inspected.media_id,
+          inspected.start_seconds,
+          inspected.end_seconds,
+        )
+      : null;
 
+  const [previewState, setPreviewState] = useState<{
+    requestUrl: string;
+    blobUrl: string | null;
+    error: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!previewRequestUrl) {
+      return;
+    }
+
+    const controller = new AbortController();
+    let objectUrl: string | null = null;
+
+    async function loadPreview() {
+      try {
+        const response = await fetch(previewRequestUrl!, {
+          method: "GET",
+          mode: "cors",
+          credentials: "omit",
+          cache: "no-store",
+          redirect: "error",
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Preview request failed (${response.status}).`);
+        }
+
+        const blob = await response.blob();
+
+        if (controller.signal.aborted) return;
+
+        if (!blob.type.startsWith("video/")) {
+          throw new Error("Invalid preview video response.");
+        }
+
+        objectUrl = URL.createObjectURL(blob);
+
+        setPreviewState({
+          requestUrl: previewRequestUrl!,
+          blobUrl: objectUrl,
+          error: null,
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+
+        setPreviewState({
+          requestUrl: previewRequestUrl!,
+          blobUrl: null,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Could not load the video preview.",
+        });
+      }
+    }
+
+    void loadPreview();
+
+    return () => {
+      controller.abort();
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [previewRequestUrl]);
+
+  const currentPreview =
+    previewState?.requestUrl === previewRequestUrl ? previewState : null;
   const generate = useMutation({
     mutationFn: async () => {
-      if (!projectId || !effectiveMediaId) throw new Error("Select a source first.");
+      if (!projectId || !effectiveMediaId)
+        throw new Error("Select a source first.");
       const brief = mode === "guided" ? intent.trim() : AUTO_INTENT;
       if (!brief) throw new Error("Describe the editorial goal.");
       const subset =
-        includedIds.length > 0 && includedIds.length < candidates.length ? [...includedIds].sort() : undefined;
+        includedIds.length > 0 && includedIds.length < candidates.length
+          ? [...includedIds].sort()
+          : undefined;
       return createHighlightJob(projectId, {
         kind: "highlight",
         intent: brief,
@@ -115,7 +220,9 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
         // Same session-recovery contract as AI Director first cuts, so a
         // refresh restores this job in the monitor and timeline.
         writeSavedJobId(projectId, sessionStorage, accepted.id);
-        void queryClient.invalidateQueries({ queryKey: ["projects", projectId, "ai-jobs", accepted.id] });
+        void queryClient.invalidateQueries({
+          queryKey: ["projects", projectId, "ai-jobs", accepted.id],
+        });
       }
     },
   });
@@ -134,7 +241,8 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
   }, [jobSucceeded, projectId, activeJobId, queryClient]);
   const artifacts = useAIArtifacts(projectId ?? "", activeJobId ?? "");
   const storyboardArtifact = useMemo(
-    () => artifacts.data?.items.find((item) => item.kind === "storyboard") ?? null,
+    () =>
+      artifacts.data?.items.find((item) => item.kind === "storyboard") ?? null,
     [artifacts.data],
   );
   const storyboard = usePublicStoryboard(
@@ -143,13 +251,19 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
     storyboardArtifact?.id ?? "",
     Boolean(projectId && activeJobId && storyboardArtifact),
   );
-  const aiMatch = inspected && storyboard.data ? matchStoryboardCut(inspected, storyboard.data.cuts) : null;
+  const aiMatch =
+    inspected && storyboard.data
+      ? matchStoryboardCut(inspected, storyboard.data.cuts)
+      : null;
 
   if (!projectId) {
     return <p>Open a project to find your best moments.</p>;
   }
 
-  const generating = generate.isPending || jobStatus.data?.status === "queued" || jobStatus.data?.status === "running";
+  const generating =
+    generate.isPending ||
+    jobStatus.data?.status === "queued" ||
+    jobStatus.data?.status === "running";
 
   return (
     <div className="highlight-navigator">
@@ -167,7 +281,11 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
         ) : media.isError ? (
           <div>
             <p role="alert">We couldn’t load your footage.</p>
-            <button type="button" className="button button-secondary" onClick={() => void media.refetch()}>
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => void media.refetch()}
+            >
               Try again
             </button>
           </div>
@@ -186,13 +304,16 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
             >
               {sources.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.original_filename} · {formatTimestamp(item.duration_seconds)}
+                  {item.original_filename} ·{" "}
+                  {formatTimestamp(item.duration_seconds)}
                 </option>
               ))}
             </select>
             {source && (
               <p className="highlight-sourceMeta technical" role="status">
-                {formatTimestamp(0)} – {formatTimestamp(source.duration_seconds)} · {source.duration_seconds.toFixed(1)}s
+                {formatTimestamp(0)} –{" "}
+                {formatTimestamp(source.duration_seconds)} ·{" "}
+                {source.duration_seconds.toFixed(1)}s
               </p>
             )}
           </>
@@ -207,12 +328,19 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
           ) : candidatesQuery.isError ? (
             <div>
               <p role="alert">{statusMessage(candidatesQuery.error)}</p>
-              <button type="button" className="button button-secondary" onClick={() => void candidatesQuery.refetch()}>
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => void candidatesQuery.refetch()}
+              >
                 Look again
               </button>
             </div>
           ) : !candidates.length ? (
-            <p>We didn’t spot standout moments in this video. Try a different video, or create a first cut with AI Director instead.</p>
+            <p>
+              We didn’t spot standout moments in this video. Try a different
+              video, or create a first cut with AI Director instead.
+            </p>
           ) : (
             <>
               <div
@@ -245,13 +373,20 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
                 </div>
                 <div className="highlight-scale technical" aria-hidden="true">
                   <span>{formatTimestamp(0)}</span>
-                  <span>{formatTimestamp(candidatesQuery.data?.duration_seconds ?? 0)}</span>
+                  <span>
+                    {formatTimestamp(
+                      candidatesQuery.data?.duration_seconds ?? 0,
+                    )}
+                  </span>
                 </div>
               </div>
 
               <ol className="highlight-list">
                 {candidates.map((candidate, candidateIndex) => (
-                  <li key={candidate.id} className={candidate.id === inspectedId ? "is-active" : ""}>
+                  <li
+                    key={candidate.id}
+                    className={candidate.id === inspectedId ? "is-active" : ""}
+                  >
                     <label className="highlight-listRow">
                       <input
                         type="checkbox"
@@ -275,7 +410,8 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
                       >
                         <strong>Moment {candidateIndex + 1}</strong>
                         <span className="technical">
-                          {formatTimestamp(candidate.start_seconds)}–{formatTimestamp(candidate.end_seconds)}
+                          {formatTimestamp(candidate.start_seconds)}–
+                          {formatTimestamp(candidate.end_seconds)}
                         </span>
                         <span>Score {candidate.score.toFixed(2)}</span>
                       </button>
@@ -290,35 +426,48 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
 
       {inspected && (
         <section aria-label="About this moment" className="highlight-section">
-          <h3 className="highlight-heading">{momentLabel(candidates, inspected.id)}</h3>
-          <video
-            key={inspected.id}
-            className="highlight-preview"
-            controls
-            preload="metadata"
-            playsInline
-            src={highlightPreviewUrl(projectId, inspected.media_id, inspected.start_seconds, inspected.end_seconds)}
-            aria-label={`Preview of ${momentLabel(candidates, inspected.id)}`}
-          />
+          <h3 className="highlight-heading">
+            {momentLabel(candidates, inspected.id)}
+          </h3>
+          {!currentPreview ? (
+            <p role="status">Loading moment preview…</p>
+          ) : currentPreview.error ? (
+            <p role="alert">{currentPreview.error}</p>
+          ) : currentPreview.blobUrl ? (
+            <video
+              key={inspected.id}
+              className="highlight-preview"
+              controls
+              preload="metadata"
+              playsInline
+              src={currentPreview.blobUrl}
+              aria-label={`Preview of ${momentLabel(candidates, inspected.id)}`}
+            />
+          ) : null}
           <dl className="highlight-facts">
             <div>
               <dt>When it happens</dt>
               <dd className="technical">
-                {formatTimestamp(inspected.start_seconds)} – {formatTimestamp(inspected.end_seconds)} (
+                {formatTimestamp(inspected.start_seconds)} –{" "}
+                {formatTimestamp(inspected.end_seconds)} (
                 {(inspected.end_seconds - inspected.start_seconds).toFixed(1)}s)
               </dd>
             </div>
             <div>
               <dt>How strong it looks</dt>
               <dd className="technical">
-                Score {inspected.score.toFixed(2)} · brightness {inspected.components.exposure?.toFixed(2) ?? "–"} · colour{" "}
+                Score {inspected.score.toFixed(2)} · brightness{" "}
+                {inspected.components.exposure?.toFixed(2) ?? "–"} · colour{" "}
                 {inspected.components.color?.toFixed(2) ?? "–"} · sharpness{" "}
                 {inspected.components.sharpness?.toFixed(2) ?? "–"}
               </dd>
             </div>
             <div>
               <dt>How we chose it</dt>
-              <dd>By picture quality — brightness, colour, and sharpness. We haven’t judged what’s happening in the scene.</dd>
+              <dd>
+                By picture quality — brightness, colour, and sharpness. We
+                haven’t judged what’s happening in the scene.
+              </dd>
             </div>
             {aiMatch?.editorial_reason && (
               <div>
@@ -326,7 +475,10 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
                 <dd>
                   {aiMatch.editorial_reason}
                   {aiMatch.playback_order !== undefined && (
-                    <span className="technical"> · plays {aiMatch.playback_order + 1} in your story</span>
+                    <span className="technical">
+                      {" "}
+                      · plays {aiMatch.playback_order + 1} in your story
+                    </span>
                   )}
                 </dd>
               </div>
@@ -336,16 +488,29 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
       )}
 
       {effectiveMediaId && candidates.length > 0 && (
-        <section aria-label="Make your highlights" className="highlight-section">
+        <section
+          aria-label="Make your highlights"
+          className="highlight-section"
+        >
           <h3 className="highlight-heading">Make your highlights</h3>
           <fieldset className="highlight-mode">
             <legend>How should we choose?</legend>
             <label>
-              <input type="radio" name="highlight-mode" checked={mode === "auto"} onChange={() => setMode("auto")} />
+              <input
+                type="radio"
+                name="highlight-mode"
+                checked={mode === "auto"}
+                onChange={() => setMode("auto")}
+              />
               For me — pick the strongest moments
             </label>
             <label>
-              <input type="radio" name="highlight-mode" checked={mode === "guided"} onChange={() => setMode("guided")} />
+              <input
+                type="radio"
+                name="highlight-mode"
+                checked={mode === "guided"}
+                onChange={() => setMode("guided")}
+              />
               With my guidance — I’ll say what matters
             </label>
           </fieldset>
@@ -374,31 +539,49 @@ export function HighlightNavigator({ projectId }: { projectId?: string }) {
             max={120}
             step={1}
             value={targetSeconds}
-            onChange={(event) => setTargetSeconds(Math.min(120, Math.max(1, Number(event.target.value) || 1)))}
+            onChange={(event) =>
+              setTargetSeconds(
+                Math.min(120, Math.max(1, Number(event.target.value) || 1)),
+              )
+            }
           />
           <p className="highlight-note">
-            {includedIds.length} of {candidates.length} moments included. Ticking moments only matters when you
-            create highlights — it never changes a video you already made.
+            {includedIds.length} of {candidates.length} moments included.
+            Ticking moments only matters when you create highlights — it never
+            changes a video you already made.
           </p>
           <button
             type="button"
             className="button button-primary"
-            disabled={generating || includedIds.length === 0 || (mode === "guided" && !intent.trim())}
+            disabled={
+              generating ||
+              includedIds.length === 0 ||
+              (mode === "guided" && !intent.trim())
+            }
             onClick={() => generate.mutate()}
           >
             {generate.isPending
               ? "Starting…"
-              : jobStatus.data?.status === "queued" || jobStatus.data?.status === "running"
+              : jobStatus.data?.status === "queued" ||
+                  jobStatus.data?.status === "running"
                 ? "Creating…"
                 : "Create highlights"}
           </button>
-          {generate.isError && <p role="alert">{statusMessage(generate.error)}</p>}
+          {generate.isError && (
+            <p role="alert">{statusMessage(generate.error)}</p>
+          )}
           {activeJobId && jobStatus.data && (
             <p role="status" className="highlight-note">
-              Your highlights are {jobStatus.data.status === "succeeded" ? "ready" : jobStatus.data.status === "failed" ? "not ready" : "being created"}
+              Your highlights are{" "}
+              {jobStatus.data.status === "succeeded"
+                ? "ready"
+                : jobStatus.data.status === "failed"
+                  ? "not ready"
+                  : "being created"}
               {jobStatus.data.status === "succeeded" &&
                 " — watch them in Preview, refine them in Timeline and Captions, then download your video."}
-              {jobStatus.data.status === "failed" && " — something went wrong while creating them. Your footage is unchanged; you can try again."}
+              {jobStatus.data.status === "failed" &&
+                " — something went wrong while creating them. Your footage is unchanged; you can try again."}
             </p>
           )}
         </section>

@@ -95,7 +95,8 @@ function RenderedMonitor({
   return (
     <div className="studio-videoPreview">
       <VideoArtifactPlayer
-        key={video.id}
+        key={`${projectId}:${jobId}:${video.id}`}
+        autoLoad
         projectId={projectId}
         jobId={jobId}
         artifactId={video.id}
@@ -168,14 +169,21 @@ function ConnectedProgramMonitor({
 }: {
   projectId: string;
 }) {
-  const { jobId: baseJobId } = usePreviewJob(projectId);
+  const { jobId: baseJobId, manual, versions } = usePreviewJob(projectId);
   const captioned = useCaptionStore(state=>state.previews[projectId]);
   const jobId = captioned?.jobId ?? baseJobId;
+
+  if (!captioned && versions.isPending) return <MonitorPlaceholder message="Loading video versions…" />;
 
   if (!jobId) {
     return (
       <MonitorPlaceholder message="Create your first cut with AI Director to watch it here." />
     );
+  }
+
+  if (!captioned && manual) {
+    if (manual.status === "succeeded") return <RenderedMonitor key={jobId} projectId={projectId} jobId={jobId} />;
+    return <MonitorPlaceholder message={manual.status === "queued" ? "Queued · Waiting for worker" : manual.status === "running" ? "Rendering video…" : "This video couldn’t be created. Open Video Activity for details."} />;
   }
 
   return (

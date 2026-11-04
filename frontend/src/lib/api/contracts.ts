@@ -85,6 +85,7 @@ export interface AIJob {
   error_code: string | null;
   /** Optional for historical API responses; null when no active stage is known. */
   progress?: AIJobProgress | null;
+  pipeline_version?:"uploaded_v1" | "highlight_v1" | null;
 }
 
 /** Artifact kind remains a string until the backend literal/enum is confirmed. */

@@ -245,9 +245,10 @@ class RealAIProcessingAdapter:
 
         except (ValueError, KeyError, TypeError) as exc:
             logger.error(
-                "AI selection error: stage=%s exception=%s",
+                "AI selection error: stage=%s exception=%s detail=%s",
                 stage,
                 type(exc).__name__,
+                str(exc)[:300],
             )
             raise AIProcessingError("invalid_ai_selection") from exc
 

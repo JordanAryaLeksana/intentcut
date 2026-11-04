@@ -29,14 +29,19 @@ class BackendSettings(BaseSettings):
     voice_max_jobs_per_project: int = Field(default=3, ge=1, le=20)
     voice_timeout_seconds: float = Field(default=180, ge=1, le=600)
     model_api_key: SecretStr | None = None
-    ai_max_media: int = Field(default=4, ge=1, le=10)
-    ai_max_windows: int = Field(default=12, ge=1, le=12)
+    ai_max_media: int = Field(default=10, ge=1, le=10)
+    ai_max_windows: int = Field(default=30, ge=1, le=30)
     ai_max_source_bytes: int = Field(default=512 * 1024 * 1024, gt=0)
     ai_max_remote_file_bytes: int = Field(
         default=25 * 1024 * 1024, gt=0, le=25 * 1024 * 1024
     )
+    ai_story_max_output_tokens: int = Field(
+        default=4000,
+        ge=500,
+        le=16000,
+    )
     ai_max_remote_total_bytes: int = Field(default=100 * 1024 * 1024, gt=0)
-    ai_max_inference_requests: int = Field(default=13, ge=2, le=13)
+    ai_max_inference_requests: int = Field(default=31, ge=2, le=31)
     highlight_max_source_bytes: int = Field(default=512 * 1024 * 1024, gt=0)
     highlight_max_duration_seconds: float = Field(default=21600.0, gt=0)
     highlight_max_probes: int = Field(default=96, ge=1, le=256)

@@ -25,7 +25,7 @@ class StorySelection(BaseModel):
 
     title: str = Field(min_length=1)
     rationale: str = Field(min_length=1)
-    selected_windows: list[StoryChoice] = Field(min_length=1, max_length=12)
+    selected_windows: list[StoryChoice] = Field(min_length=1, max_length=30)
 
     @model_validator(mode="after")
     def validate_choices(self) -> "StorySelection":
@@ -41,7 +41,7 @@ class StorySelection(BaseModel):
 
 
 def request_story(
-    client: OpenAI, evidence: list[dict], intent: str, target_seconds: float
+    client: OpenAI, evidence: list[dict], intent: str, target_seconds: float, max_output_tokens: int = 4000
 ) -> tuple[StorySelection, dict]:
     """Same M2A structured request; model supplies references, never paths/times."""
     prompt = (
@@ -64,7 +64,7 @@ def request_story(
         model=MODEL,
         store=False,
         reasoning={"effort": "low"},
-        max_output_tokens=1500,
+        max_output_tokens=max_output_tokens,
         text={
             "format": {
                 "type": "json_schema",
@@ -76,7 +76,14 @@ def request_story(
         input=prompt,
     )
     if response.status != "completed" or not response.output_text:
-        raise ValueError("Muse returned no completed response")
+        reason = getattr(
+            getattr(response, "incomplete_details", None),
+            "reason",
+            None,
+        )
+        raise ValueError(
+            f"Story selection incomplete: status={response.status}, reason={reason}"
+        )
     selection = StorySelection.model_validate_json(response.output_text)
     return selection, {
         "model": MODEL,
@@ -144,7 +151,7 @@ def build_edit_plan(
     if not math.isfinite(target_seconds) or not 0 < target_seconds <= 120:
         raise ValueError("Invalid target duration")
     records = {window.window_index: window for window in windows}
-    if not records or len(records) != len(windows) or len(records) > 12:
+    if not records or len(records) != len(windows) or len(records) > 30:
         raise ValueError("Invalid evidence references")
     for window in windows:
         if (

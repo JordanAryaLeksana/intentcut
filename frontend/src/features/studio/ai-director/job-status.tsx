@@ -1,10 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useAIJobStatus } from "./hooks/use-ai-job-status";
 import { JobArtifacts } from "./job-artifacts";
 import { ProcessingTimeline, useProcessingClock } from "./processing-timeline";
 
-export function JobStatus({ projectId, jobId }: { projectId: string; jobId: string }) {
+export function JobStatus({ projectId, jobId, children }: { projectId: string; jobId: string; children?: ReactNode }) {
   const query = useAIJobStatus(projectId, jobId);
   const job = query.data;
   const now = useProcessingClock(job?.status === "queued" || job?.status === "running");
@@ -18,7 +19,7 @@ export function JobStatus({ projectId, jobId }: { projectId: string; jobId: stri
           <button type="button" className="button button-secondary" onClick={() => void query.refetch()}>Check again</button>
         </div>
       )}
-      {job && <ProcessingTimeline job={job} now={now} unconfirmed={query.isError} />}
+      {job && <ProcessingTimeline job={job} now={now} unconfirmed={query.isError} recoveryAction={children} />}
       {job?.status === "succeeded" && !query.isError && <JobArtifacts projectId={projectId} jobId={jobId} />}
     </div>
   );
