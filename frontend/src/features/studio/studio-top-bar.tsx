@@ -21,8 +21,13 @@ export function renderStateLabel(status?: string, error = false): string {
 }
 
 function JobState({ projectId }: { projectId: string }) {
-  const {jobId, manual} = usePreviewJob(projectId);
+  const {jobId, manual, versions} = usePreviewJob(projectId);
   const job = useAIJobStatus(projectId, jobId);
+  // A render in progress is the project's current activity even while the
+  // monitor keeps playing the previous ready version.
+  const rendering = versions.data?.find(v => v.status === "queued" || v.status === "running");
+  if (rendering && rendering.job_id !== manual?.job_id)
+    return <span className="studio-renderState" role="status">{`Video version ${rendering.revision} · ${renderStateLabel(rendering.status)}`}</span>;
   return <span className="studio-renderState" role="status">{manual ? `Video version ${manual.revision} · ${job.isError ? "We couldn’t check its status" : renderStateLabel(job.data?.status ?? manual.status)}` : jobId ? renderStateLabel(job.data?.status, job.isError) : "No video yet"}</span>;
 }
 

@@ -7,7 +7,7 @@ import { useAIJobStatus } from "../ai-director/hooks/use-ai-job-status";
 import { useAIArtifacts } from "../ai-director/hooks/use-ai-artifacts";
 import { usePublicStoryboard } from "../ai-director/hooks/use-public-storyboard";
 import { useActiveJobId } from "../store/use-editor-store";
-import { draftMatchesSaved, useDraftStore, type TimelineDraft } from "../store/use-draft-store";
+import { draftSyncState, useDraftStore, type TimelineDraft } from "../store/use-draft-store";
 import { formatTimestamp, markerPercent } from "./highlight-format";
 import "./highlights.css";
 
@@ -18,14 +18,20 @@ function MomentPreview({ url }: { url: string }) {
     error?: string;
   }>({});
   const [ready, setReady] = useState(false);
+  const [loadedUrl, setLoadedUrl] = useState(url);
+  if (loadedUrl !== url) {
+    // Defensive: a new clip without a remount starts from a clean state.
+    setLoadedUrl(url);
+    setPreview({});
+    setReady(false);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
     let objectUrl: string | undefined;
 
-    setPreview({});
-    setReady(false);
-
+    // State starts empty on mount (the parent keys each moment) and is reset
+    // by the Retry handler, so the effect only performs the fetch.
     void fetch(url, {
       signal: controller.signal,
       credentials: "omit",
@@ -114,9 +120,11 @@ function MomentPreview({ url }: { url: string }) {
             <button
               type="button"
               className="button button-secondary"
-              onClick={() =>
-                setAttempt((value) => value + 1)
-              }
+              onClick={() => {
+                setPreview({});
+                setReady(false);
+                setAttempt((value) => value + 1);
+              }}
             >
               Retry preview
             </button>
@@ -176,7 +184,7 @@ export function HighlightWorkspace({ projectId, draft }: { projectId: string; dr
         <h3>AI Moment Navigator</h3>
         <p className="highlight-note">Explore all {candidates.length} candidates and refine {draft?.cuts.length ?? 0} moments in your edit. The source footage is unchanged.</p>
       </div>
-      {draft && <p className="highlight-workspaceSaved" role="status">{draft.cuts.length} moments · {total.toFixed(1)}s · {draftMatchesSaved(draft, saved) ? `Version ${saved?.revision} saved` : "Unsaved changes"}</p>}
+      {draft && <p className="highlight-workspaceSaved" role="status">{draft.cuts.length} moments · {total.toFixed(1)}s · {({ saved: `Version ${saved?.revision} saved`, original: "No edits yet", unsaved: "Unsaved changes", none: "" })[draftSyncState(draft, saved)]}</p>}
     </div>
     <details className="highlight-samplingDetails">
       <summary>How AI searched your footage</summary>
@@ -194,17 +202,23 @@ export function HighlightWorkspace({ projectId, draft }: { projectId: string; dr
       <div className="highlight-workspaceDetails">
         {inspected && <>
           <h4>Moment details</h4>
-          <MomentPreview key={`${jobId}:${inspected.id}`} url={highlightPreviewUrl(projectId, inspected.media_id, inspected.start_seconds, inspected.end_seconds)} />
-          <p className="highlight-note">Original footage: {formatTimestamp(inspected.start_seconds)}–{formatTimestamp(inspected.end_seconds)} · Relevance {Math.round(inspected.score * 100)}/100</p>
-          <h4>{originalCut ? "Why AI selected this moment" : "Why AI considered this moment"}</h4>
-          {reason ? <p>{reason}</p> : <p>This moment matched your creative prompt ({Math.round(inspected.score * 100)}/100 relevance). No scene-specific explanation was saved. Watch the source clip to decide whether it fits your story.</p>}
-          <p className="highlight-note">{sequenceIndex >= 0 ? `Included as moment ${sequenceIndex + 1} of ${draft?.cuts.length} in your edit.` : originalCut ? "Originally selected by AI, but not in your current edit." : "Considered during discovery, but not included in the generated edit."}</p>
-          {currentCut && draft && <div className="studio-draftActions" role="group" aria-label="Edit selected highlight moment">
-            <button type="button" className="button button-secondary" disabled={sequenceIndex === 0} onClick={() => move(scope, currentCut.id, -1)}>Move earlier</button>
-            <button type="button" className="button button-secondary" disabled={sequenceIndex === draft.cuts.length - 1} onClick={() => move(scope, currentCut.id, 1)}>Move later</button>
-            <button type="button" className="button button-secondary" onClick={() => remove(scope, currentCut.id)}>Remove moment</button>
-          </div>}
-          {!originalCut && <p className="highlight-note">Adding an unselected candidate needs a new validated edit plan; this Navigator does not silently add clips that the saved storyboard cannot render.</p>}
+          {/* Preview and its controls are grouped so the edit actions sit next
+              to (or directly under) the clip instead of below long copy. */}
+          <div className="highlight-momentLayout">
+            <MomentPreview key={`${jobId}:${inspected.id}`} url={highlightPreviewUrl(projectId, inspected.media_id, inspected.start_seconds, inspected.end_seconds)} />
+            <div className="highlight-momentInfo">
+              <p className="highlight-note">Original footage: {formatTimestamp(inspected.start_seconds)}–{formatTimestamp(inspected.end_seconds)} · Relevance {Math.round(inspected.score * 100)}/100</p>
+              <p className="highlight-note">{sequenceIndex >= 0 ? `Included as moment ${sequenceIndex + 1} of ${draft?.cuts.length} in your edit.` : originalCut ? "Originally selected by AI, but not in your current edit." : "Considered during discovery, but not included in the generated edit."}</p>
+              {currentCut && draft && <div className="studio-draftActions" role="group" aria-label="Edit selected highlight moment">
+                <button type="button" className="button button-secondary" disabled={sequenceIndex === 0} onClick={() => move(scope, currentCut.id, -1)}>Move earlier</button>
+                <button type="button" className="button button-secondary" disabled={sequenceIndex === draft.cuts.length - 1} onClick={() => move(scope, currentCut.id, 1)}>Move later</button>
+                <button type="button" className="button button-secondary" onClick={() => remove(scope, currentCut.id)}>Remove moment</button>
+              </div>}
+              <h4>{originalCut ? "Why AI selected this moment" : "Why AI considered this moment"}</h4>
+              {reason ? <p>{reason}</p> : <p>This moment matched your creative prompt ({Math.round(inspected.score * 100)}/100 relevance). No scene-specific explanation was saved. Watch the source clip to decide whether it fits your story.</p>}
+              {!originalCut && <p className="highlight-note">Adding an unselected candidate needs a new validated edit plan; this Navigator does not silently add clips that the saved storyboard cannot render.</p>}
+            </div>
+          </div>
         </>}
       </div>
       <div className="highlight-workspaceCandidates">

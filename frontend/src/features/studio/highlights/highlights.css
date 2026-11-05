@@ -247,58 +247,70 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-/* Highlights: prevent the bottom workspace from clipping */
+/* Highlights: the Navigator scrolls independently only inside the desktop
+   grid (>= 900px), where the panel has a fixed height. Below 900px the Studio
+   uses document scroll; a zero flex-basis there would collapse the Navigator
+   body to 0px, hiding the preview and its edit controls. */
+@media (min-width: 900px) {
+  .studio-timeline:has(.highlight-workspace) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
 
-.studio-timeline:has(.highlight-workspace) {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+  .studio-timeline:has(.highlight-workspace) > .studio-panelHeader {
+    flex: 0 0 auto;
+  }
+
+  .studio-timeline:has(.highlight-workspace) > .studio-timelineBody {
+    display: block;
+    flex: 1 1 0;
+    min-height: 0;
+    width: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+}
+
+/* Source-moment preview (Phase 1 layout fix).
+   The preview frame is 16:9 and always letterboxes/pillarboxes the source with
+   `object-fit: contain`, so portrait, square and 4:3 footage is never cropped.
+   Its width is capped by the Navigator's *visible height* (size container
+   below), so the whole frame plus its controls fit without hidden overflow.
+   This only affects the source preview; rendered MP4s carry their own padding. */
+.highlight-workspaceDetails { min-width: 0; width: 100%; container: highlight-details / inline-size; }
+.highlight-momentLayout { display: grid; gap: 12px; align-items: start; min-width: 0; }
+.highlight-momentInfo { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.highlight-momentInfo h4 { margin: 4px 0 0; }
+.highlight-momentInfo .studio-draftActions { margin-bottom: 0; }
+.highlight-workspace .highlight-previewFrame,
+.highlight-workspaceDetails .highlight-previewFrame {
+  width: min(100%, calc((100cqh - 56px) * 16 / 9));
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
 }
-
-.studio-timeline:has(.highlight-workspace) > .studio-panelHeader {
-  flex: 0 0 auto;
-}
-
-.studio-timeline:has(.highlight-workspace) > .studio-timelineBody {
-  display: block;
-  flex: 1 1 0;
-  min-height: 0;
-  width: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-}
-
-/* Keep the video large, but prevent excessive height */
-.highlight-workspace .highlight-previewFrame {
-  width: 100%;
-  max-width: 680px;
-  aspect-ratio: 16 / 9;
-}
-
-.highlight-workspace .highlight-previewFrame > video {
+.highlight-workspace .highlight-previewFrame > video,
+.highlight-workspaceDetails .highlight-previewFrame > video {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
-/* AI Highlights — Full-width moment preview */
-
-.highlight-workspaceDetails {
-  min-width: 0;
-  width: 100%;
+@container highlight-details (min-width: 620px) {
+  .highlight-momentLayout { grid-template-columns: minmax(0, 1.5fr) minmax(220px, 1fr); }
 }
-
-.highlight-workspaceDetails .highlight-previewFrame {
-  width: 100%;
-  max-width: none;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-}
-
-.highlight-workspaceDetails .highlight-previewFrame > video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+@media (min-width: 900px) {
+  /* Highlights is the Navigator's workflow: give the lower workspace more of
+     the screen. First Cut keeps its 65/35 split. */
+  .studio-workspace[data-workflow="highlights"] { grid-template-rows: minmax(0, 55fr) minmax(0, 45fr); }
+  /* The Navigator body scrolls on its own and is the size container that
+     bounds the preview height (cqh). A stable gutter keeps the scrollbar
+     visible as a cue that more controls sit below. */
+  .studio-timeline:has(.highlight-workspace) > .studio-timelineBody {
+    container: highlight-navigator / size;
+    scrollbar-gutter: stable;
+  }
 }

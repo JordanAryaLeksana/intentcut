@@ -7,7 +7,7 @@ import { useRenderVersions } from "../use-editing";
 import { aiJobStatusOptions, useAIJobStatus } from "./hooks/use-ai-job-status";
 import { JobArtifacts } from "./job-artifacts";
 import { proposalOptions } from "./revision-chat";
-import { buildLifecyclePhases } from "./processing-lifecycle";
+import { buildLifecyclePhases, summarizeActivity } from "./processing-lifecycle";
 import { FirstCutMilestones, ProcessingOverview, Timestamp, useProcessingClock } from "./processing-timeline";
 import { STAGE_COPY, type ObservedJob } from "./processing-state";
 
@@ -35,6 +35,8 @@ export function DirectorProcessingStatus({ projectId, firstCutJobId, children }:
   renderJobs.forEach(query => { if (query.data) jobs.set(query.data.id, query.data); });
   const phases = buildLifecyclePhases(renders, proposals.data ?? [], jobs);
   const current = phases.findLast(phase => phase.active) ?? phases.at(-1);
+  const summary = summarizeActivity(phases, new Set(renders.map(v => v.job_id)),
+    { label: firstLabel, ready: firstCut.data?.status === "succeeded" && !firstCut.isError });
   const firstActive = firstCut.data?.status === "queued" || firstCut.data?.status === "running";
   const now = useProcessingClock(firstActive);
   const scrollRegion = useRef<HTMLDivElement>(null);
@@ -58,9 +60,10 @@ export function DirectorProcessingStatus({ projectId, firstCutJobId, children }:
     </div>
     <div className="studio-processingJob">
       {firstOnly && firstCut.data && <ProcessingOverview job={firstCut.data} now={now} unconfirmed={firstCut.isError} recoveryAction={children} />}
-      {current && <div className="processing-summary processing-current" role="status" aria-live="polite" aria-atomic="true">
-        <span className="studio-overline">{current.active && !unconfirmed ? "In progress" : "Latest update"}</span>
-        <h3>{current.label} · {current.status}</h3>
+      {summary && <div className="processing-summary processing-current" role="status" aria-live="polite" aria-atomic="true">
+        <span className="studio-overline">{summary.overline === "In progress" && unconfirmed ? "Latest update" : summary.overline}</span>
+        <h3>{summary.title}</h3>
+        {summary.note && <p className="processing-summaryNote">{summary.note}</p>}
         {unconfirmed && <p>Showing the last confirmed update.</p>}
       </div>}
       {versions.isPending && <p role="status">Loading video activity…</p>}
@@ -77,12 +80,16 @@ export function DirectorProcessingStatus({ projectId, firstCutJobId, children }:
           {firstCut.data && <FirstCutMilestones job={firstCut.data} unconfirmed={firstCut.isError} label={firstLabel} />}
           {phases.map(phase => {
             const stale = (renders.some(v => v.job_id === phase.id) ? versions.isError : proposals.isError) || errors.has(phase.id);
+            // Finished, superseded entries stay readable but muted, so an old
+            // failure never looks like the project's current state.
+            const historical = !phase.active && phase !== phases.at(-1);
             return <Fragment key={phase.id}>
               {phase.steps.map((step, index) => <li key={`${phase.id}:${step.key}`} data-phase={phase.id} data-step={step.key}
                 data-state={stale && (step.state === "active" || step.state === "waiting") ? "unknown" : step.state}
                 data-current={current?.id === phase.id && phase.active && !stale || undefined}
+                data-historical={historical || undefined}
                 aria-current={current?.id === phase.id && step.state === "active" && !stale ? "step" : undefined}>
-                {index === 0 && <p className="processing-phaseLabel">{phase.label}</p>}
+                {index === 0 && <p className="processing-phaseLabel">{phase.label}{historical && phase.steps.some(s => s.state === "failed") ? <span className="processing-earlier"> · Earlier</span> : null}</p>}
                 <h4>{step.title}</h4>
                 <Timestamp value={step.timestamp} />
                 {step.description && !(stale && step.progress) && <p>{step.description}</p>}

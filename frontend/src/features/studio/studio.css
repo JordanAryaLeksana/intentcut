@@ -202,6 +202,27 @@
 .revision-comparison h4 { font-size: 12px; color: var(--primary); }
 .revision-comparison ol, .revision-reasons { padding-left: 16px; }
 .revision-reasons li { margin-block: 6px; }
+/* Saving the draft is a separate action from asking the AI Director, so it
+   sits in its own group above the request form instead of inside it. */
+.revision-draftBar { display: grid; gap: 4px; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--background); }
+.studio-revisionChat .revision-draftBar p { margin-block: 0; }
+.revision-draftState { color: var(--foreground); }
+.revision-draftBar .studio-saveControl { margin-top: 6px; }
+.studio-revisionChat .revision-help { color: var(--muted-foreground); margin-block: 0; }
+.studio-revisionChat .revision-form > .button { justify-self: start; }
+.studio-revisionChat .revision-unsent, .studio-draftNotice { margin-block: 0; padding: 6px 10px; border-left: 2px solid var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); color: var(--foreground); }
+.studio-draftPersistence .studio-draftNotice { flex-basis: 100%; }
+.revision-earlier { margin-top: 16px; border-top: 1px solid var(--border); }
+.revision-earlier > summary { min-height: 36px; display: list-item; align-content: center; cursor: pointer; color: var(--muted-foreground); }
+.revision-earlier > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.revision-earlier .revision-message { opacity: .8; }
+/* History: superseded failures stay readable but are not styled as current. */
+.processing-summaryNote { color: var(--muted-foreground); }
+.processing-milestones li[data-historical='true'][data-state='failed']::before { background: var(--surface); border-color: var(--muted-foreground); }
+.processing-earlier { color: var(--muted-foreground); font-weight: 500; }
+@media (max-width: 899px) {
+  .revision-earlier > summary { min-height: 44px; }
+}
 
 /* Captions use the existing dock, with its own scrolling and native form controls. */
 .studio-captions { min-width: 0; }
@@ -278,3 +299,15 @@
 .highlight-navigator .highlight-section > .button { margin-top: 12px; }
 .highlight-navigator .highlight-listButton { min-height: 44px; width: 100%; text-align: left; }
 @media (max-width: 899px) { .studio-workflowSwitch button { min-height: 44px; } }
+
+/* AI Visuals rename: a labelled field with its own visible input, matching
+   the other Visuals form controls (label above, input + action on one row). */
+.studio-visualRename { display: grid; gap: 6px; min-width: 0; }
+.studio-visualRename label { font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+.studio-visualRenameRow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; min-width: 0; }
+.studio-visualRenameRow input { flex: 1 1 160px; min-width: 0; min-height: 36px; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: 6px; padding: 6px 10px; font: inherit; }
+.studio-visualRenameRow input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.studio-visualRenameRow .button:disabled { opacity: .45; cursor: default; }
+.studio-visualRename p { margin: 0; font-size: 12px; }
+.studio-visualRenameSaved { color: var(--primary); }
+@media (max-width: 600px) { .studio-visualRenameRow input { min-height: 44px; } }

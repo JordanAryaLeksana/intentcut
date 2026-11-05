@@ -2,10 +2,12 @@
 
 import { useEditingScope } from "../workflow";
 
-import type { EditingWorkflow } from "@/lib/api/workflow";
+import { workflowScope, type EditingWorkflow } from "@/lib/api/workflow";
 import { useRef, useState } from "react";
+import { create } from "zustand";
 import {
   queryOptions,
+  type QueryClient,
   useMutation,
   useQuery,
   useQueryClient,
@@ -18,9 +20,9 @@ import {
   requestRevision,
   type RevisionProposal,
 } from "@/lib/api/revisions";
-import { draftMatchesSaved, useDraftStore } from "../store/use-draft-store";
-import { SaveDraftControl } from "../save-draft-control";
-import { useSaveDraft } from "../use-save-draft";
+import { draftMatchesSaved, draftSyncState, useDraftStore } from "../store/use-draft-store";
+import { draftSaveLabel, SaveDraftControl } from "../save-draft-control";
+import { persistEditingDraft, useSaveDraft } from "../use-save-draft";
 import { savedDraftKey } from "../use-editing";
 
 export const proposalsKey = (projectId: string, workflow: EditingWorkflow = "first_cut") =>
@@ -235,28 +237,112 @@ export function ProposalReview({
   );
 }
 
+/**
+ * Typed-but-unsent revision instructions, keyed by editing scope. Shared so the
+ * render controls can warn that "Make my video" will not include a request the
+ * AI Director has never seen. Cleared only when the request is accepted by the
+ * server (or the user clears the field).
+ */
+export const useRevisionInstruction = create<{
+  byScope: Record<string, string>;
+  /** A send was attempted but its outcome is unknown (e.g. lost response). */
+  unconfirmedByScope: Record<string, boolean>;
+}>(() => ({ byScope: {}, unconfirmedByScope: {} }));
+function setRevisionInstruction(scope: string, value: string) {
+  useRevisionInstruction.setState((state) => ({
+    byScope: { ...state.byScope, [scope]: value },
+    // Editing the text makes it a new, clearly unsent request.
+    unconfirmedByScope: { ...state.unconfirmedByScope, [scope]: false },
+  }));
+}
+function markRevisionUnconfirmed(scope: string) {
+  useRevisionInstruction.setState((state) => ({ unconfirmedByScope: { ...state.unconfirmedByScope, [scope]: true } }));
+}
+
+export type RevisionNotice = "unsent" | "unconfirmed" | "awaiting_decision" | "in_progress";
+export const REVISION_NOTICE_COPY: Record<RevisionNotice, string> = {
+  unconfirmed:
+    "We couldn’t confirm whether your last change request reached your AI Director. Check Rework your story before asking again.",
+  unsent:
+    "Your change request in Rework your story hasn’t been sent. Make my video uses the order shown here, not that request.",
+  awaiting_decision:
+    "An AI Director suggestion is waiting for your answer. It isn’t in this order until you choose Use this order.",
+  in_progress:
+    "Your AI Director is still working on a request. This order doesn’t include it yet.",
+};
+/** Revision work that the current order does NOT include, most urgent first. */
+export function pendingRevisionNotices(
+  unsentInstruction: string | undefined,
+  proposals: RevisionProposal[] | undefined,
+  unconfirmed = false,
+): RevisionNotice[] {
+  const notices: RevisionNotice[] = [];
+  const pending = (proposals ?? []).filter((p) => p.state === "pending");
+  if (pending.some((p) => p.job_status === "queued" || p.job_status === "running"))
+    notices.push("in_progress");
+  if (pending.some((p) => p.job_status === "succeeded" && p.after !== null))
+    notices.push("awaiting_decision");
+  // Never claim "not sent" when a send was attempted and its outcome is unknown.
+  if (unsentInstruction?.trim()) notices.push(unconfirmed ? "unconfirmed" : "unsent");
+  return notices;
+}
+
+type RevisionRequestBody = { request_id: string; draft_revision: number; instruction: string };
+/**
+ * Sends one revision request against the persisted draft. An untouched
+ * generated cut is first persisted as the base draft (no edits, same order) so
+ * the request has a revision to apply to. A previous body is reused verbatim
+ * when nothing changed, keeping the request idempotent across manual retries.
+ */
+export async function sendRevisionRequest(
+  client: QueryClient,
+  projectId: string,
+  workflow: EditingWorkflow,
+  instruction: string,
+  remembered: { current: RevisionRequestBody | null },
+): Promise<string> {
+  const scope = workflowScope(projectId, workflow);
+  const state = useDraftStore.getState();
+  if (draftSyncState(state.byProject[scope], state.savedByProject[scope]) === "original")
+    await persistEditingDraft(client, projectId, workflow);
+  const after = useDraftStore.getState();
+  const base = after.savedByProject[scope];
+  const current = after.byProject[scope];
+  if (!base || !current || !draftMatchesSaved(current, base))
+    throw new Error("Save the draft before requesting a revision.");
+  const text = instruction.trim();
+  const previous = remembered.current;
+  // Remember the body before the network call: if the response is lost, the
+  // user's manual retry reuses the same request_id instead of starting twice.
+  remembered.current = previous && previous.draft_revision === base.revision && previous.instruction === text
+    ? previous
+    : { request_id: crypto.randomUUID(), draft_revision: base.revision, instruction: text };
+  return requestRevision(projectId, remembered.current, workflow);
+}
+
 export function RevisionChat({ projectId }: { projectId: string }) {
   const { workflow, scope } = useEditingScope(projectId);
-  const [instruction, setInstruction] = useState("");
-  const request = useRef<{
-    request_id: string;
-    draft_revision: number;
-    instruction: string;
-  } | null>(null);
+  const instruction = useRevisionInstruction((s) => s.byScope[scope] ?? "");
+  const unconfirmed = useRevisionInstruction((s) => Boolean(s.unconfirmedByScope[scope]));
+  const request = useRef<RevisionRequestBody | null>(null);
   const submitLock = useRef(false);
   const save = useSaveDraft(projectId);
   const client = useQueryClient();
   const proposals = useQuery(proposalOptions(projectId, workflow));
   const draft = useDraftStore((s) => s.byProject[scope]);
   const saved = useDraftStore((s) => s.savedByProject[scope]);
+  const restored = useDraftStore((s) => s.restoredByProject[scope]);
+  const sync = draftSyncState(draft, saved);
   const active = proposals.data?.some(
     (p) => p.job_status === "queued" || p.job_status === "running",
   );
+  // An untouched generated cut ("original") can be revised directly: its
+  // order is persisted as the base draft just before the request is sent.
   const canSubmit = Boolean(
-    saved &&
+    restored &&
     draft &&
     draft.cuts.length &&
-    draftMatchesSaved(draft, saved) &&
+    (sync === "saved" || sync === "original") &&
     proposals.isSuccess &&
     !active &&
     !save.pending &&
@@ -264,40 +350,52 @@ export function RevisionChat({ projectId }: { projectId: string }) {
   );
   const submit = useMutation({
     mutationFn: async () => {
-      if (!saved || !canSubmit)
+      if (!canSubmit)
         throw new Error("Save the draft before requesting a revision.");
-      if (
-        !request.current ||
-        request.current.draft_revision !== saved.revision ||
-        request.current.instruction !== instruction.trim()
-      )
-        request.current = {
-          request_id: crypto.randomUUID(),
-          draft_revision: saved.revision,
-          instruction: instruction.trim(),
-        };
-      return requestRevision(projectId, request.current, workflow);
+      return sendRevisionRequest(client, projectId, workflow, instruction, request);
     },
     retry: false,
     onSuccess: async () => {
       request.current = null;
-      setInstruction("");
+      setRevisionInstruction(scope, "");
       await client.invalidateQueries({ queryKey: proposalsKey(projectId, workflow) });
     },
     onError: async () => {
+      markRevisionUnconfirmed(scope);
       await client.invalidateQueries({ queryKey: proposalsKey(projectId, workflow) });
     },
     onSettled: () => { submitLock.current = false; },
   });
+  const ids = workflow === "first_cut"
+    ? { heading: "revision-heading", field: "revision-instruction", hint: "revision-instruction-hint" }
+    : { heading: "revision-heading-highlights", field: "revision-instruction-highlights", hint: "revision-instruction-hint-highlights" };
+  const unsent = Boolean(instruction.trim()) && !submit.isPending && !unconfirmed;
+  // Newest first. The latest request and any still-pending ones stay open;
+  // finished older requests are history, collapsed so they never read as the
+  // current state of the project.
+  const [latest, ...older] = proposals.data ?? [];
+  const openOlder = older.filter((p) => p.state === "pending");
+  const earlier = older.filter((p) => p.state !== "pending");
   return (
-    <section className="studio-revisionChat" aria-labelledby={(workflow === "first_cut" ? "revision-heading" : "revision-heading-highlights")}>
-      <h3 id={(workflow === "first_cut" ? "revision-heading" : "revision-heading-highlights")}>Rework your story</h3>
+    <section className="studio-revisionChat" aria-labelledby={ids.heading}>
+      <h3 id={ids.heading}>Rework your story</h3>
       <p>
         Ask your AI Director to reorder or remove moments. Nothing changes until
         you approve it. Shortening clips, music, transitions, and new footage
         aren’t part of this yet. Your footage stays where it is.
       </p>
+      <div className="revision-draftBar">
+        <p>
+          <span className="studio-overline">Your draft</span>{" "}
+          <span className="revision-draftState">{draftSaveLabel(sync, saved?.revision)}</span>
+        </p>
+        <p className="revision-help">
+          Save Changes keeps your Timeline edits. It doesn’t send anything to your AI Director.
+        </p>
+        <SaveDraftControl projectId={projectId} />
+      </div>
       <form
+        className="revision-form"
         onSubmit={(event) => {
           event.preventDefault();
           if (submitLock.current || submit.isPending || !canSubmit) return;
@@ -305,26 +403,41 @@ export function RevisionChat({ projectId }: { projectId: string }) {
           submit.mutate();
         }}
       >
-        <label htmlFor={(workflow === "first_cut" ? "revision-instruction" : "revision-instruction-highlights")}>What should change?</label>
+        <label htmlFor={ids.field}>What should change?</label>
         <textarea
-          id={(workflow === "first_cut" ? "revision-instruction" : "revision-instruction-highlights")}
+          id={ids.field}
           rows={3}
           maxLength={1000}
           required
+          aria-describedby={ids.hint}
           value={instruction}
           disabled={submit.isPending || active}
-          onChange={(event) => setInstruction(event.target.value)}
+          onChange={(event) => setRevisionInstruction(scope, event.target.value)}
           placeholder="Move the last moment first and remove the second one."
         />
-        <p>
+        <p id={ids.hint} className="revision-help">
           {instruction.length}/1000 characters ·{" "}
-          {saved ? `Version ${saved.revision} saved` : "Save a draft to begin"}
+          {sync === "saved"
+            ? `Based on saved version ${saved?.revision}`
+            : sync === "original"
+              ? "Based on your original order"
+              : sync === "unsaved"
+                ? "Save your edits first"
+                : "Create a cut to begin"}
         </p>
-        {draft && !draftMatchesSaved(draft, saved) && (
-          <p>Save your editing draft first, then ask for a new order.</p>
+        {sync === "unsaved" && (
+          <p>Save your edits first, then ask for a new order.</p>
         )}
-        <p>Save Changes saves your entire editing draft, including Timeline edits.</p>
-        <SaveDraftControl projectId={projectId} />
+        {unsent && (
+          <p className="revision-unsent">
+            Not sent yet. Your AI Director only sees this after you select Ask for a new order.
+          </p>
+        )}
+        {unconfirmed && Boolean(instruction.trim()) && !submit.isPending && (
+          <p className="revision-unsent">
+            We couldn’t confirm whether this was sent. Check your requests below before asking again.
+          </p>
+        )}
         <button
           type="submit"
           className="button button-primary"
@@ -354,13 +467,18 @@ export function RevisionChat({ projectId }: { projectId: string }) {
       >
         Refresh ideas
       </button>
-      {proposals.data?.map((proposal) => (
-        <ProposalReview
-          key={proposal.id}
-          projectId={projectId}
-          proposal={proposal}
-        />
+      {latest && <ProposalReview key={latest.id} projectId={projectId} proposal={latest} />}
+      {openOlder.map((proposal) => (
+        <ProposalReview key={proposal.id} projectId={projectId} proposal={proposal} />
       ))}
+      {earlier.length > 0 && (
+        <details className="revision-earlier">
+          <summary>Earlier requests ({earlier.length})</summary>
+          {earlier.map((proposal) => (
+            <ProposalReview key={proposal.id} projectId={projectId} proposal={proposal} />
+          ))}
+        </details>
+      )}
     </section>
   );
 }

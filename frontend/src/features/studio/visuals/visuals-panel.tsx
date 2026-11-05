@@ -57,10 +57,13 @@ function RenameImage({
   onSaved: () => void;
 }) {
   const [name, setName] = useState(job.name ?? "");
-
-  useEffect(() => {
+  // When the saved name changes on the server, adopt it during render (React's
+  // "adjust state on prop change" pattern) instead of syncing in an effect.
+  const [savedName, setSavedName] = useState(job.name);
+  if (savedName !== job.name) {
+    setSavedName(job.name);
     setName(job.name ?? "");
-  }, [job.id, job.name]);
+  }
 
   const rename = useMutation({
     mutationFn: () => renameVisualImage(project, job.id, name.trim()),
@@ -72,6 +75,7 @@ function RenameImage({
 
   return (
     <form
+      className="studio-visualRename"
       onSubmit={(e) => {
         e.preventDefault();
 
@@ -88,30 +92,36 @@ function RenameImage({
         Image name
       </label>
 
-      <input
-        id={`visual-name-${job.id}`}
-        type="text"
-        value={name}
-        maxLength={80}
-        onChange={(e) => setName(e.target.value)}
-        required
-      />
+      <div className="studio-visualRenameRow">
+        <input
+          id={`visual-name-${job.id}`}
+          type="text"
+          value={name}
+          maxLength={80}
+          onChange={(e) => { setName(e.target.value); if (rename.isSuccess || rename.isError) rename.reset(); }}
+          required
+          placeholder="Name this image"
+        />
 
-      <button
-        type="submit"
-        className="button button-secondary"
-        disabled={
-          rename.isPending ||
-          !cleanName ||
-          cleanName === job.name
-        }
-      >
-        {rename.isPending ? "Saving..." : "Save name"}
-      </button>
+        <button
+          type="submit"
+          className="button button-secondary"
+          disabled={
+            rename.isPending ||
+            !cleanName ||
+            cleanName === job.name
+          }
+        >
+          {rename.isPending ? "Saving…" : "Save name"}
+        </button>
+      </div>
 
+      {rename.isSuccess && (
+        <p role="status" className="studio-visualRenameSaved">Name saved</p>
+      )}
       {rename.isError && (
         <p role="alert">
-          Couldn't save image name. Please try again.
+          Couldn’t save image name. Please try again.
         </p>
       )}
     </form>
@@ -301,7 +311,7 @@ export function VisualPromptForm({
       </label>
 
       <p className="studio-storyboardNote">
-        Give this image a name to find it easily in your library. This won't
+        Give this image a name to find it easily in your library. This won’t
         affect the AI-generated image.
       </p>
       

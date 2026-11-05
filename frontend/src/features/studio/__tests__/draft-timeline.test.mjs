@@ -129,7 +129,9 @@ test("accessible controls expose real disabled states and selected state", () =>
   assert.equal((html.match(/disabled=""/g) ?? []).length, 1);
   html = render(createElement(DraftTimeline, { projectId: "p", draft: draft() }));
   assert.match(html, /aria-pressed="true"/);
-  assert.match(html, /Unsaved changes/);
+  // Selecting a moment is not an edit: a freshly received cut has nothing unsaved.
+  assert.match(html, /No edits yet/);
+  assert.doesNotMatch(html, /Unsaved changes/);
   assert.doesNotMatch(html, /Render Changes|draggable|playhead/i);
 });
 

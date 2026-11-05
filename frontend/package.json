@@ -10,7 +10,7 @@
     "test:api": "tsx --test src/lib/api/modular-api.test.mjs",
     "test:media": "tsx --test src/features/studio/media/selection.test.mjs",
     "test:storyboard": "tsx --test src/features/studio/ai-director/storyboard/storyboard-schema.test.mjs",
-    "test:timeline": "tsx --test src/features/studio/__tests__/narrative-timeline.test.mjs",
+    "test:timeline": "node --import tsx --import ./src/features/studio/__tests__/css-stub.setup.mjs --test src/features/studio/__tests__/narrative-timeline.test.mjs",
     "test:highlights": "tsx --test src/features/studio/__tests__/highlights.test.mjs",
     "test:highlights-nav": "node --import tsx --import ./src/features/studio/__tests__/css-stub.setup.mjs --test src/features/studio/__tests__/highlight-navigator.test.mjs"
   },
@@ -24,7 +24,7 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
-    "@tailwindcss/turbopack": "^4",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

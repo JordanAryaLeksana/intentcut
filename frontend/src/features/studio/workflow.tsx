@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ComponentProps, type ReactNode } from "react";
 import { create } from "zustand";
 import { useDraftStore } from "./store/use-draft-store";
 import { workflowScope, type EditingWorkflow } from "@/lib/api/workflow";
@@ -14,6 +14,10 @@ const useWorkflows = create<{ selected: Record<string, EditingWorkflow>; choose:
 }));
 export function WorkflowBoundary({ workflow, children }: { workflow: EditingWorkflow; children: ReactNode }) {
   return <WorkflowContext value={workflow}>{children}</WorkflowContext>;
+}
+/** Studio grid root; exposes the active workflow so layout can adapt without `:has()` timing gaps. */
+export function WorkflowWorkspace(props: ComponentProps<"main">) {
+  return <main {...props} data-workflow={useContext(WorkflowContext)} />;
 }
 export function StudioWorkflow({ projectId, children }: { projectId?: string; children: ReactNode }) {
   const workflow = useWorkflows(state => state.selected[projectId ?? ""] ?? "first_cut");

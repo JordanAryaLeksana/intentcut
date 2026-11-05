@@ -5,13 +5,21 @@ import { useEditingScope } from "./workflow";
 import { useEffect, useRef } from "react";
 import { ApiError } from "@/lib/api/transport";
 import { useCaptionStore } from "./captions/store";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { renderDraft } from "@/lib/api/editing";
 import {
   draftMatchesSaved,
+  draftSyncState,
+  isDraftDirty,
   useDraftStore,
   type TimelineDraft,
 } from "./store/use-draft-store";
+import {
+  pendingRevisionNotices,
+  proposalOptions,
+  REVISION_NOTICE_COPY,
+  useRevisionInstruction,
+} from "./ai-director/revision-chat";
 import {
   renderVersionsKey,
   useRenderVersions,
@@ -23,7 +31,7 @@ import { failureDescription } from "./ai-director/processing-state";
 
 export function renderSummary(status: string): string {
   switch (status) {
-    case "queued": return "Queued · Waiting for the manual render worker";
+    case "queued": return "Queued · Waiting to start";
     case "running": return "Rendering · Creating your video…";
     case "succeeded": return "Ready · Your finished video is ready to watch";
     case "failed": return "Failed · Try making this video again";
@@ -71,7 +79,7 @@ function ManualRenderStatus({
     <p role="status">
       Version {revision}:{" "}
       {status === "queued"
-        ? "Queued · Waiting for the manual render worker"
+        ? "Queued · Waiting to start"
         : status === "running"
           ? `Rendering · ${labels[stage ?? ""] ?? "Creating your video"}`
           : status === "succeeded"
@@ -95,9 +103,16 @@ export function DraftPersistence({
   const client = useQueryClient();
   const renderLock = useRef(false);
   const saved = useDraftStore((state) => state.savedByProject[scope]);
-  const { setPreview } = useDraftStore();
+  const clearPreviewSelection = useDraftStore((state) => state.clearPreviewSelection);
   const versions = useRenderVersions(projectId);
+  const proposals = useQuery(proposalOptions(projectId, workflow));
+  const unsentInstruction = useRevisionInstruction((state) => state.byScope[scope]);
+  const unconfirmed = useRevisionInstruction((state) => Boolean(state.unconfirmedByScope[scope]));
+  const notices = pendingRevisionNotices(unsentInstruction, proposals.data, unconfirmed);
   const matches = draftMatchesSaved(draft, saved);
+  const sync = draftSyncState(draft, saved);
+  // A saved order identical to the generated one renders the same video.
+  const sameAsOriginal = sync === "saved" && !isDraftDirty(draft);
   const currentRender = versions.data?.find(
     (v) => v.revision === saved?.revision,
   );
@@ -114,7 +129,10 @@ export function DraftPersistence({
       client.setQueryData<import("@/lib/api/editing").RenderVersion[]>(renderVersionsKey(projectId, workflow), previous =>
         previous?.some(v => v.job_id === jobId) ? previous : [{ job_id: jobId, revision, status: "queued" }, ...(previous ?? [])]);
       useCaptionStore.getState().preview(scope);
-      setPreview(scope, jobId);
+      // Keep the playable video on screen while the new version renders. The
+      // monitor follows the newest *ready* version automatically, so it
+      // switches to this render only once it has succeeded.
+      clearPreviewSelection(scope);
       void client.invalidateQueries({ queryKey: aiJobKey(projectId, jobId) });
       await client.invalidateQueries({ queryKey: renderVersionsKey(projectId, workflow) });
     },
@@ -123,16 +141,26 @@ export function DraftPersistence({
   return (
     <div className="studio-draftPersistence">
       <p role="status">
-        {matches
-          ? `Saved as version ${saved?.revision}`
-          : "You have unsaved changes"}{" "}
-        ·{" "}
-        {render.isPending ? "Requesting your video…" : currentRender ? renderSummary(currentRender.status)
-          : versions.isPending ? "Checking video versions…" : versions.isError ? "Video status unavailable · Check versions below"
-          : "You haven’t made a video from this draft yet"}
+        {sync === "original"
+          ? "No edits yet · Your current video already uses this order"
+          : <>
+            {matches
+              ? `Saved as version ${saved?.revision}`
+              : "You have unsaved changes"}{" "}
+            ·{" "}
+            {render.isPending ? "Requesting your video…" : currentRender ? renderSummary(currentRender.status)
+              : versions.isPending ? "Checking video versions…" : versions.isError ? "Video status unavailable · Check versions below"
+              : "You haven’t made a video from this draft yet"}
+          </>}
       </p>
+      {sameAsOriginal && !currentRender && (
+        <p className="studio-draftNotice">This saved version has the same order as your original video, so a new video would look the same.</p>
+      )}
+      {notices.map((notice) => (
+        <p key={notice} className="studio-draftNotice" data-notice={notice}>{REVISION_NOTICE_COPY[notice]}</p>
+      ))}
       <div className="studio-draftActions">
-        {!matches && (
+        {sync === "unsaved" && (
           <a
             href={(workflow === "first_cut" ? "#editing-draft-save" : "#editing-draft-save-highlights")}
             className="studio-toolbarLink"

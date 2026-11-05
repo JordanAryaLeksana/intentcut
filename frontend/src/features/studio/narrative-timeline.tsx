@@ -121,7 +121,7 @@ function ConnectedTimeline({ projectId }: { projectId: string }) {
     <div hidden={Boolean(draft)} style={draft ? undefined : { display: "contents" }}>
       {jobId
         ? <JobTimeline key={jobId} projectId={projectId} jobId={jobId} />
-        : <TimelineMessage title="No video yet">{workflow === "highlights" ? "Create AI Highlights from your source video and creative prompt to see the moments here." : "Create your first cut with AI Director to see your story here."}</TimelineMessage>}
+        : <TimelineMessage title="No video yet">Create your first cut with AI Director to see your story here.</TimelineMessage>}
     </div>
   </>;
 }

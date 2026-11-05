@@ -5,7 +5,8 @@ import { useEditingScope } from "./workflow";
 import { DraftPersistence } from "./draft-persistence";
 import { useActiveJobId } from "./store/use-editor-store";
 import type { CSSProperties } from "react";
-import { draftMatchesSaved, useDraftStore, type TimelineDraft } from "./store/use-draft-store";
+import { draftSyncState, useDraftStore, type TimelineDraft } from "./store/use-draft-store";
+import { draftSaveLabel } from "./save-draft-control";
 
 export function DraftControls({ projectId, draft }: { projectId: string; draft: TimelineDraft }) {
   const { scope } = useEditingScope(projectId);
@@ -25,10 +26,11 @@ export function DraftTimeline({ projectId, draft }: { projectId: string; draft: 
   const activeJob = useActiveJobId(projectId);
   const saved = useDraftStore(state => state.savedByProject[scope]);
   const total = draft.cuts.reduce((sum, cut) => sum + cut.end_seconds - cut.start_seconds, 0);
+  const sync = draftSyncState(draft, saved);
   return <div className="studio-storyboard" role="region" aria-label="Your draft">
     <div className="studio-draftToolbar">
       <p className="studio-storyboardSummary" role="status">{draft.cuts.length} moments · {total.toFixed(1)} seconds ·
-        {draftMatchesSaved(draft,saved) ? `Version ${saved?.revision} saved` : "Unsaved changes"}</p>
+        {sync === "saved" ? `Version ${saved?.revision} saved` : draftSaveLabel(sync)}</p>
       <div className="studio-draftActions" role="group" aria-label="Undo and redo">
         <button type="button" className="button button-secondary" disabled={!draft.past.length} onClick={() => undo(scope)}>Undo</button>
         <button type="button" className="button button-secondary" disabled={!draft.future.length} onClick={() => redo(scope)}>Redo</button>

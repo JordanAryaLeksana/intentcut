@@ -51,6 +51,9 @@ export function usePreviewJob(projectId: string) {
   const draft = useDraftStore(state => state.byProject[scope]);
   const original = draft?.base.jobId ?? active;
   const saved = useDraftStore(state => state.savedByProject[scope]);
-  const manual = selected === undefined ? (versions.data?.find(v => v.status === "queued" || v.status === "running") ?? versions.data?.find(v => v.status === "succeeded"))?.job_id : selected;
+  // Automatic selection shows the newest *ready* version (newest first), so a
+  // queued/running render never replaces a playable video. Before any version
+  // is ready, the generated cut stays on screen.
+  const manual = selected === undefined ? versions.data?.find(v => v.status === "succeeded")?.job_id : selected;
   return { jobId: manual ?? original ?? saved?.base_job_id ?? null, manual: manual ? versions.data?.find(v => v.job_id === manual) : undefined, versions };
 }

@@ -6,7 +6,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 const require = createRequire(import.meta.url);
 const { QueryClient, QueryClientProvider } = require("@tanstack/react-query");
-import { useDraftStore, draftMatchesSaved } from "../store/use-draft-store.ts";
+import { useDraftStore, draftMatchesSaved, draftSyncState } from "../store/use-draft-store.ts";
 import { persistEditingDraft } from "../use-save-draft.ts";
 import { StudioTopBar } from "../studio-top-bar.tsx";
 import { DraftPersistence } from "../draft-persistence.tsx";
@@ -27,13 +27,29 @@ function setup(){
 }
 function savedFor(draft,revision=1){return {revision,base_job_id:job,base_artifact_id:artifact,window_indices:draft.cuts.map(c=>c.window_index),storyboard,updated_at:"2026-11-04T00:00:00Z"};}
 function html(client){Object.assign(useDraftStore.getInitialState(),store());return renderToStaticMarkup(createElement(QueryClientProvider,{client},createElement(SaveDraftControl,{projectId:project,showStatus:true})));}
-test("First Cut adoption creates editable cuts and exposes Save Changes",()=>{
+test("First Cut adoption is a clean baseline: no false 'Unsaved changes', nothing to save",()=>{
   const client=setup();
   assert.equal(store().byProject[project].cuts.length,storyboard.cuts.length);
   assert.equal(draftMatchesSaved(store().byProject[project],null),false);
+  assert.equal(draftSyncState(store().byProject[project],null),"original");
+  assert.match(html(client),/No edits yet/);
+  assert.doesNotMatch(html(client),/Unsaved changes/);
+  assert.match(html(client),/<button[^>]*disabled=""[^>]*>Save Changes<\/button>/);
+  // The first real edit makes the draft dirty and enables Save.
+  store().move(project,store().byProject[project].cuts[0].id,1);
+  assert.equal(draftSyncState(store().byProject[project],null),"unsaved");
   assert.match(html(client),/Unsaved changes/);
-  assert.match(html(client),/<button[^>]*>Save Changes<\/button>/);
-  assert.doesNotMatch(html(client),/disabled/);client.clear();
+  assert.doesNotMatch(html(client),/disabled/);
+  // Undoing back to the generated order is clean again.
+  store().undo(project);
+  assert.equal(draftSyncState(store().byProject[project],null),"original");client.clear();
+});
+test("undoing to the original order after a saved edit still counts as unsaved",()=>{
+  const client=setup();store().move(project,store().byProject[project].cuts[0].id,1);
+  store().saved(project,savedFor(store().byProject[project],2));
+  assert.equal(draftSyncState(store().byProject[project],store().savedByProject[project]),"saved");
+  store().undo(project);
+  assert.equal(draftSyncState(store().byProject[project],store().savedByProject[project]),"unsaved");client.clear();
 });
 test("one shared save persists exact sequence, synchronizes cache and clears dirty state",async()=>{
   const client=setup();store().move(project,store().byProject[project].cuts[0].id,1);
@@ -78,17 +94,22 @@ test("refresh and artifact-before-GET restore saved ordering; later cache update
   store().restore(project,persisted);assert.equal(store().savedByProject[project].revision,4);client.clear();
 });
 
-test("header has status only; Timeline offers navigation and rendering; Director owns one Save",()=>{
-  const client=setup();Object.assign(useDraftStore.getInitialState(),store());
+test("header has status only; Timeline offers navigation and rendering; Rework keeps Save outside the request form",()=>{
+  const client=setup();store().move(project,store().byProject[project].cuts[0].id,1);Object.assign(useDraftStore.getInitialState(),store());
   const render=node=>renderToStaticMarkup(createElement(QueryClientProvider,{client},node));
   const header=render(createElement(StudioTopBar,{projectId:project}));
   assert.match(header,/Unsaved changes/);assert.doesNotMatch(header,/>Save Changes<\/button>/);
   const timeline=render(createElement(DraftPersistence,{projectId:project,draft:store().byProject[project]}));
-  assert.match(timeline,/Save your draft in AI Director/);assert.match(timeline,/href="#editing-draft-save"/);
+  assert.match(timeline,/Save your draft in Rework your story/);assert.match(timeline,/href="#editing-draft-save"/);
   assert.match(timeline,/Make my video/);assert.doesNotMatch(timeline,/>Save Changes<\/button>/);
   const director=render(createElement(RevisionChat,{projectId:project}));
   assert.equal((director.match(/>Save Changes<\/button>/g)??[]).length,1);
-  assert.match(director,/entire editing draft, including Timeline edits/);
+  assert.match(director,/doesn’t send anything to your AI Director/);
+  // Save Changes must not live inside the revision request form.
+  const form=director.slice(director.indexOf("<form"),director.indexOf("</form>"));
+  assert.doesNotMatch(form,/Save Changes/);
+  assert.match(form,/Ask for a new order/);
+  assert.ok(director.indexOf(">Save Changes</button>")<director.indexOf("<form"));
   store().saved(project,savedFor(store().byProject[project]));Object.assign(useDraftStore.getInitialState(),store());
   const savedDirector=render(createElement(RevisionChat,{projectId:project}));
   assert.match(savedDirector,/<button id="editing-draft-save"[^>]*disabled=""[^>]*>Save Changes<\/button>/);

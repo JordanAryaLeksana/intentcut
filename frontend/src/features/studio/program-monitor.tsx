@@ -7,7 +7,7 @@ import { monitorVideo } from "./monitor-video";
 import { useCaptionStore } from "./captions/store";
 import { RenderVersionPicker } from "./draft-persistence";
 import { usePreviewJob } from "./use-editing";
-import { draftMatchesSaved, useDraftStore } from "./store/use-draft-store";
+import { draftSyncState, isDraftDirty, useDraftStore } from "./store/use-draft-store";
 import { useAIJobStatus } from "./ai-director/hooks/use-ai-job-status";
 import { useAIArtifacts } from "./ai-director/hooks/use-ai-artifacts";
 import { VideoArtifactPlayer } from "./ai-director/video-artifact-player";
@@ -188,7 +188,7 @@ function ConnectedProgramMonitor({
 
   if (!captioned && manual) {
     if (manual.status === "succeeded") return <RenderedMonitor key={jobId} projectId={projectId} jobId={jobId} />;
-    return <MonitorPlaceholder message={manual.status === "queued" ? "Queued · Waiting for worker" : manual.status === "running" ? "Rendering video…" : "This video couldn’t be created. Open Video Activity for details."} />;
+    return <MonitorPlaceholder message={manual.status === "queued" ? "Waiting to start making this version…" : manual.status === "running" ? "Making this version…" : "This version couldn’t be created. See Video Activity for details."} />;
   }
 
   return (
@@ -200,15 +200,31 @@ function ConnectedProgramMonitor({
   );
 }
 
+/** Whether the video on screen shows the current editing order. */
+export function previewMatchesDraft(
+  sync: ReturnType<typeof draftSyncState>,
+  dirty: boolean,
+  savedRevision: number | undefined,
+  manual: { revision: number; status: string } | undefined,
+): boolean | null {
+  if (sync === "none") return null;
+  // A ready manual render shows exactly the saved revision it was made from.
+  if (manual) return sync === "saved" && manual.revision === savedRevision && manual.status === "succeeded";
+  // The generated video shows the original order.
+  return sync === "original" || (sync === "saved" && !dirty);
+}
+
 function DraftPreviewNotice({ projectId }: { projectId: string }) {
   const { workflow, scope } = useEditingScope(projectId);
   const captioned = useCaptionStore(state=>state.previews[scope]);
   const draft = useDraftStore((state) => state.byProject[scope]);
   const saved = useDraftStore((state) => state.savedByProject[scope]);
-  const {manual} = usePreviewJob(projectId);
-  const matches = draft && saved && draftMatchesSaved(draft,saved) && manual?.revision === saved.revision && manual.status === "succeeded";
-  if (captioned) return <span>{captioned.label} · Ready to watch</span>;
-  return <span>{manual ? `Version ${manual.revision} · ${manual.status === "succeeded" ? "ready" : manual.status}` : workflow === "highlights" ? "Your highlights" : "Your first cut"} · {matches ? "This is your saved draft" : "Your edits aren’t in this preview yet"}</span>;
+  const {manual, versions} = usePreviewJob(projectId);
+  const rendering = versions.data?.find(v => v.status === "queued" || v.status === "running");
+  const making = rendering && rendering.job_id !== manual?.job_id ? ` · Version ${rendering.revision} is being made and will appear here when ready` : "";
+  if (captioned) return <span>{captioned.label} · Ready to watch{making}</span>;
+  const matches = previewMatchesDraft(draftSyncState(draft, saved), Boolean(draft && isDraftDirty(draft)), saved?.revision, manual);
+  return <span>{manual ? `Version ${manual.revision} · ${manual.status === "succeeded" ? "ready" : manual.status}` : workflow === "highlights" ? "Your highlights" : "Your first cut"}{matches === null ? "" : matches ? " · Matches your current order" : " · Your latest order isn’t in this video yet"}{making}</span>;
 }
 
 export function ProgramMonitor({

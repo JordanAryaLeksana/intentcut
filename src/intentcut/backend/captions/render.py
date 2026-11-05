@@ -36,6 +36,43 @@ def frame_info(path: Path) -> tuple[int, Fraction]:
     return int(data["nb_read_frames"]), Fraction(data["avg_frame_rate"])
 
 
+def _line_filters(
+    index: int,
+    lines: list[str],
+    workspace: Path,
+    fontsize: int,
+    margin: int,
+    lane: int,
+    cue: SavedCue,
+) -> list[str]:
+    """One drawtext per wrapped line, so no line-break character reaches FFmpeg.
+
+    FFmpeg's drawtext (observed with 8.0) breaks the line on a literal LF in
+    ``textfile`` but also draws the font's missing-glyph box for it, which was
+    burned into exported videos. Each line is therefore drawn by its own filter
+    at a fixed baseline: ``y = baseline - ascent`` aligns baselines regardless
+    of which glyphs a line contains. Blank lines keep their vertical space.
+    """
+    step = round(fontsize * 1.4)
+    bottom = margin + lane * fontsize * 5 + round(fontsize * 0.3)
+    enable = f"enable='gte(t,{cue.start_ms / 1000:.3f})*lt(t,{cue.end_ms / 1000:.3f})'"
+    filters = []
+    for number, line in enumerate(lines):
+        if not line.strip():
+            continue
+        name = f"cue_{index:04d}_{number:02d}.txt"
+        (workspace / name).write_text(line, encoding="utf-8")
+        baseline = bottom + (len(lines) - 1 - number) * step
+        # Every path/expression is server-generated; raw caption text lives
+        # only in textfile and expansion=none disables %{...} evaluation.
+        filters.append(
+            f"drawtext=fontfile=font.ttf:textfile={name}:expansion=none:"
+            f"fontsize={fontsize}:fontcolor=white:box=1:boxcolor=black@0.75:boxborderw=6:"
+            f"x=(w-text_w)/2:y=h-{baseline}-ascent:{enable}"
+        )
+    return filters
+
+
 def burn_captions(
     source: Path, output: Path, cues: list[SavedCue], duration_ms: int
 ) -> None:
@@ -90,16 +127,8 @@ def burn_captions(
                 > metadata.video.height
             ):
                 raise AIProcessingError("processing_limit")
-            name = f"cue_{index:04d}.txt"
-            (workspace / name).write_text("\n".join(lines), encoding="utf-8")
-            # Every path/expression is server-generated; raw caption text lives
-            # only in textfile and expansion=none disables %{...} evaluation.
-            filters.append(
-                f"drawtext=fontfile=font.ttf:textfile={name}:expansion=none:"
-                f"fontsize={fontsize}:fontcolor=white:box=1:boxcolor=black@0.75:boxborderw=6:"
-                f"x=(w-text_w)/2:y=h-text_h-{margin + lane * fontsize * 5}:"
-                f"enable='gte(t,{cue.start_ms / 1000:.3f})*"
-                f"lt(t,{cue.end_ms / 1000:.3f})'"
+            filters.extend(
+                _line_filters(index, lines, workspace, fontsize, margin, lane, cue)
             )
         script = workspace / "subtitles.filter"
         script.write_text(",".join(filters), encoding="utf-8")

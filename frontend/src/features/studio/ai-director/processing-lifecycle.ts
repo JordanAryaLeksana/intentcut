@@ -104,3 +104,52 @@ export function buildLifecyclePhases(versions: RenderVersion[], proposals: Revis
     ? timestamp(a.createdAt)! - timestamp(b.createdAt)! || a.revision - b.revision || a.id.localeCompare(b.id)
     : a.revision - b.revision);
 }
+
+export interface ActivitySummary {
+  /** "In progress" for active work, otherwise the state of the current video. */
+  overline: "In progress" | "Current video" | "Latest update";
+  title: string;
+  /** Secondary outcome (e.g. a later revision request) that did not change the video. */
+  note?: string;
+  phaseId?: string;
+}
+
+const READY = activityRenderLabel("succeeded");
+const outputLabel = (phase: LifecyclePhase) => phase.label.replace(/ Render$/, "");
+function revisionOutcomeNote(phase: LifecyclePhase): string {
+  switch (phase.status) {
+    case "Revision failed": return `${phase.label} didn’t work · Your draft and video are unchanged.`;
+    case "Proposal rejected": return `${phase.label} was turned down · Your draft is unchanged.`;
+    case "Proposal out of date": return `${phase.label} is out of date · Ask for a new revision.`;
+    case "Proposal accepted": return `${phase.label} was accepted · Make a new video to watch it.`;
+    case "Proposal ready": return `${phase.label} is ready · Choose whether to use it in Rework your story.`;
+    default: return `${phase.label} · ${phase.status}`;
+  }
+}
+
+/**
+ * Separates what the user can watch now from revision/render history, so a
+ * finished failure of a *request* never headlines over a ready video.
+ */
+export function summarizeActivity(
+  phases: LifecyclePhase[],
+  renderIds: ReadonlySet<string>,
+  first: { label: string; ready: boolean },
+): ActivitySummary | null {
+  const latest = phases.at(-1);
+  if (!latest) return null;
+  const active = phases.findLast(phase => phase.active);
+  if (active) return { overline: "In progress", title: `${active.label} · ${active.status}`, phaseId: active.id };
+  const renders = phases.filter(phase => renderIds.has(phase.id));
+  const ready = renders.findLast(phase => phase.status === READY);
+  const lastRender = renders.at(-1);
+  const current = ready
+    ? { title: `${ready.label} · ${ready.status}`, phaseId: ready.id }
+    : first.ready ? { title: `${first.label} · ${READY}`, phaseId: undefined } : null;
+  if (!current) return { overline: "Latest update", title: `${latest.label} · ${latest.status}`, phaseId: latest.id };
+  const notes: string[] = [];
+  if (lastRender && lastRender !== ready)
+    notes.push(`${outputLabel(lastRender)} couldn’t be made · ${ready ? outputLabel(ready) : first.label} is still ready to watch.`);
+  if (!renderIds.has(latest.id)) notes.push(revisionOutcomeNote(latest));
+  return { overline: "Current video", ...current, ...(notes.length ? { note: notes.join(" ") } : {}) };
+}

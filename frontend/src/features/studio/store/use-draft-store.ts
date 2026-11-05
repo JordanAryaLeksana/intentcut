@@ -26,12 +26,29 @@ export function draftMatchesSaved(draft: TimelineDraft, saved?: SavedDraft | nul
   return Boolean(saved && draft.base.jobId === saved.base_job_id && draft.base.artifactId === saved.base_artifact_id &&
     draft.cuts.length === saved.window_indices.length && draft.cuts.every((cut, index) => cut.window_index === saved.window_indices[index]));
 }
+/**
+ * Truthful save state for status copy.
+ * - "original": an untouched, freshly generated cut. Its order already exists
+ *   on the server as the generated video, so nothing can be lost and there is
+ *   nothing to save yet (no editing draft has been persisted for this base).
+ * - "saved": the local order matches the persisted editing draft.
+ * - "unsaved": the local order differs from what is persisted.
+ */
+export type DraftSyncState = "none" | "original" | "saved" | "unsaved";
+export function draftSyncState(draft?: TimelineDraft | null, saved?: SavedDraft | null): DraftSyncState {
+  if (!draft) return "none";
+  if (draftMatchesSaved(draft, saved)) return "saved";
+  const savedForThisBase = Boolean(saved && saved.base_job_id === draft.base.jobId && saved.base_artifact_id === draft.base.artifactId);
+  return !savedForThisBase && !isDraftDirty(draft) ? "original" : "unsaved";
+}
 interface DraftState {
   byProject: Record<string, TimelineDraft>;
   savedByProject: Record<string, SavedDraft | null>;
   restoredByProject: Record<string, boolean>;
   previewByProject: Record<string, string | null>;
   setPreview: (projectId: string, jobId: string | null) => void;
+  /** Return the monitor to automatic selection (newest ready version). */
+  clearPreviewSelection: (projectId: string) => void;
   restore: (projectId: string, saved: SavedDraft | null, force?: boolean) => void;
   saved: (projectId: string, saved: SavedDraft) => void;
   applyAccepted: (projectId: string, saved: SavedDraft, expectedLocalRevision: number) => void;
@@ -62,6 +79,15 @@ export const useDraftStore = create<DraftState>()((set) => {
     setPreview: (projectId, jobId) => {
       try { sessionStorage.setItem(`intentcut:preview:${projectId}`, JSON.stringify(jobId)); } catch { /* Optional session persistence. */ }
       set((state) => ({ previewByProject: {...state.previewByProject, [projectId]: jobId} }));
+    },
+    clearPreviewSelection: (projectId) => {
+      try { sessionStorage.removeItem(`intentcut:preview:${projectId}`); } catch { /* Optional session persistence. */ }
+      set((state) => {
+        if (!(projectId in state.previewByProject)) return state;
+        const { [projectId]: _cleared, ...rest } = state.previewByProject;
+        void _cleared;
+        return { previewByProject: rest };
+      });
     },
     applyAccepted: (projectId, saved, expectedLocalRevision) => set((state) => {
       const current = state.byProject[projectId];
