@@ -8,7 +8,7 @@ IntentCut is a local-first, AI-assisted video editing studio built for the **Met
 
 > **Hackathon project** · Built during October 26–November 4, 2026 · Solo developer: [Jordan Arya Leksana](https://github.com/JordanAryaLeksana)
 >
-> **3-minute demo video:** _Add the public or unlisted, reviewer-accessible demo link before submission._  
+> **3-minute demo video:** _https://youtu.be/sISMP5Q1CoE?si=M75cG9_AQNpRa9ne 
 > **Source code:** https://github.com/JordanAryaLeksana/intentcut  
 > **Submission portal:** https://cerebralvalley.ai/e/meta-ai-developer-hackathon/hackathon/submit
 
